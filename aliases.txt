@@ -29,13 +29,14 @@ List of blade aliases you can use in the bot. Valid aliases are the ones in "dou
                 "siccake": ["siccake", "sicsiccmcake"]}
                 
 Valid aliases for turbine fuel types:
-{               "hps": ["hps", "High Pressure Steam", "highpressuresteam", "high pressure steam", "hp steam"],
-                "lps": ["lps", "Low Pressure Steam", "lowpressuresteam", "lp steam", "low pressure steam"],
-                "steam": ["steam", "Steam", "mek steam", "tes", "forge steam", "te steam"],
-                "scs": ["scs", "Supercritical Steam", "supercritical steam", "sc steam", "scsteam"],
-                "scco2": ["scco2", "Supercritical Carbon Dioxide", "sc co2", "supercritical co2", "supercritical carbon dioxide"],
-                "n2": ["n2", "Hot Nitrogen", "nitrogen", "hot nitrogen", "hot n2"],
-                "co2": ["co2", "Hot Carbon Dioxide", "carbon dioxide", "hot co2", "hot carbon dioxide"],
-                "he": ["he", "Hot Helium", "helium", "hot helium", "hot he"],
-                "ar": ["ar", "Hot Argon", "argon", "hot argon", "hot ar"],
-                "ne": ["ne", "Hot Neon", "neon", "hot neon", "hot ne"]}
+{               "hps": ["hps", "High Pressure Steam", "highpressuresteam", "hpsteam"],
+                "lps": ["lps", "Low Pressure Steam", "lowpressuresteam", "lpsteam"],
+                "steam": ["steam", "Steam", "meksteam", "tes", "forgesteam", "testeam"],
+                "scs": ["scs", "Supercritical Steam", "supercriticalsteam", "scsteam"],
+                "scco2": ["scco2", "Supercritical Carbon Dioxide", "supercriticalco2",
+                          "supercriticalcarbondioxide", "sco2", "scarbondioxide"],
+                "n2": ["n2", "Hot Nitrogen", "nitrogen", "hotnitrogen", "hotn2"],
+                "co2": ["co2", "Hot Carbon Dioxide", "carbondioxide", "hotco2", "hotcarbondioxide"],
+                "he": ["he", "Hot Helium", "helium", "hothelium", "hothe"],
+                "ar": ["ar", "Hot Argon", "argon", "hotargon", "hotar"],
+                "ne": ["ne", "Hot Neon", "neon", "hotneon", "hotne"]
