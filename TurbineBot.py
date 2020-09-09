@@ -45,15 +45,17 @@ bladeAliases = {"trinitite": ["trinitite", "tri", 752973193878175825],
 steamStats = {"hps": [16.0, 4.0], "lps": [4.0, 2.0], "steam": [4.0, 2.0], "scs": [16.0, 16.0], "scco2": [24.0, 8.0],
               "n2": [11.0, 2.0], "co2": [14.0, 3.0], "he": [22.0, 6.0], "ar": [17.0, 5.0], "ne": [25.0, 8.0]}
 
-steamAliases = {"hps": ["hps", "High Pressure Steam", "highpressuresteam", "high pressure steam", "hp steam"],
-                "lps": ["lps", "Low Pressure Steam", "lowpressuresteam", "lp steam", "low pressure steam"],
-                "steam": ["steam", "Steam", "mek steam", "tes", "forge steam", "te steam"], "scs": ["scs",
-                "Supercritical Steam", "supercritical steam", "sc steam", "scsteam"], "scco2": ["scco2",
-                "Supercritical Carbon Dioxide", "sc co2", "supercritical co2", "supercritical carbon dioxide"],
-                "n2": ["n2", "Hot Nitrogen", "nitrogen", "hot nitrogen", "hot n2"], "co2": ["co2", "Hot Carbon Dioxide",
-                "carbon dioxide", "hot co2", "hot carbon dioxide"], "he": ["he", "Hot Helium", "helium", "hot helium",
-                "hot he"], "ar": ["ar", "Hot Argon", "argon", "hot argon", "hot ar"], "ne": ["ne", "Hot Neon", "neon",
-                "hot neon", "hot ne"]}
+steamAliases = {"hps": ["hps", "High Pressure Steam", "highpressuresteam", "hpsteam"],
+                "lps": ["lps", "Low Pressure Steam", "lowpressuresteam", "lpsteam"],
+                "steam": ["steam", "Steam", "meksteam", "tes", "forgesteam", "testeam"],
+                "scs": ["scs", "Supercritical Steam", "supercriticalsteam", "scsteam"],
+                "scco2": ["scco2", "Supercritical Carbon Dioxide", "supercriticalco2",
+                          "supercriticalcarbondioxide", "sco2", "scarbondioxide"],
+                "n2": ["n2", "Hot Nitrogen", "nitrogen", "hotnitrogen", "hotn2"],
+                "co2": ["co2", "Hot Carbon Dioxide", "carbondioxide", "hotco2", "hotcarbondioxide"],
+                "he": ["he", "Hot Helium", "helium", "hothelium", "hothe"],
+                "ar": ["ar", "Hot Argon", "argon", "hotargon", "hotar"],
+                "ne": ["ne", "Hot Neon", "neon", "hotneon", "hotne"]}
 
 client = commands.Bot(command_prefix="&")
 client.remove_command("help")
@@ -83,12 +85,13 @@ async def help(ctx):
     "[List of Aliases]({})".format("https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"), inline=False)
     helpEmbed.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
     helpEmbed.add_field(name="&help", value="Prints this message.", inline=False)
+    helpEmbed.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
     await ctx.send(embed=helpEmbed)
 
 
 @client.command(aliases=["turbine", "plan"])
 async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal expansion) (blades)
-    actualExp, idealExp, emojiBlades = [], [], ""
+    actualExp, idealExp, blades, emojiBlades = [], [], [], ""
     totalExp, bladeMult, statorCount, steamType, inputError, args = 1, 0, 0, None, False, list(args)
     error = ""
 
@@ -96,78 +99,78 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
         return min(ideal, actual)/max(ideal, actual)
 
     # checks if there's enough arguments
-    if len(args) < 3:
-        inputError = True
-        error += "At least one argument is missing!\n"
-
-    # checks calculation mode (1st argument)
-    if args[0].lower() not in ("overhaul", "underhaul", "preoverhaul"):
-        inputError = True
-        error += "\"{}\" is not a valid calculation mode!\n".format(args[0])
-
-    # checks if the 2nd argument is a steam type or RF density, checks for invalid steam & invalid RF/mb
     try:
-        typeDetection = float(args[1])
-        if typeDetection <= 0.0:
+        # checks calculation mode (1st argument)
+        if (args[0].lower()).replace(" ", "") not in ("overhaul", "underhaul", "preoverhaul", "pre-overhaul"):
             inputError = True
-            error += "Turbine fuel must have a positive energy density!\n"
+            error += "\"{}\" is not a valid calculation mode!\n".format(args[0])
 
+        # checks if the 2nd argument is a steam type or RF density, checks for invalid steam & invalid RF/mb
         try:
-            typeDetection = float(args[2])
+            typeDetection = float(args[1])
             if typeDetection <= 0.0:
                 inputError = True
-                error += "Turbine fuel must have a positive expansion coefficient!\n"
+                error += "Turbine fuel must have a positive energy density!\n"
+
+            try:
+                typeDetection = float(args[2])
+                if typeDetection <= 0.0:
+                    inputError = True
+                    error += "Turbine fuel must have a positive expansion coefficient!\n"
+            except ValueError:
+                inputError = True
+                error += "Missing expansion coefficient parameter!\n"
+
+            blades = args[3:]
+            steamType = "Custom"
         except ValueError:
-            inputError = True
-            error += "Missing expansion coefficient parameter!\n"
 
-        blades = args[3:]
-        steamType = "Custom"
-    except ValueError:
+            try:
+                typeDetection = float(args[2])
+                inputError = True
+                error += "You can't have both a fuel type and an ideal expansion!\n"
+            except ValueError:
+                pass
 
-        try:
-            typeDetection = float(args[2])
-            inputError = True
-            error += "You can't have both a fuel type and an ideal expansion!\n"
-        except ValueError:
-            pass
+            steamFound = False
+            steamType = args[1]
 
-        steamFound = False
-        steamType = args[1]
+            for aliases in steamAliases.values():
+                if (steamType.lower()).replace(" ", "") in aliases:
+                    steamType = aliases[0]
+                    steamFound = True
+                    break
 
-        for aliases in steamAliases.values():
-            if steamType.lower() in aliases:
-                steamType = aliases[0]
-                steamFound = True
-                break
+            if not steamFound:
+                inputError = True
+                error += "Turbine fuel \"{}\" is invalid!\n".format(steamType)
 
-        if not steamFound:
-            inputError = True
-            error += "Turbine fuel \"{}\" is invalid!\n".format(steamType)
+            blades = args[2:]
 
-        blades = args[2:]
+        # checks for invalid blades
+        for i1 in range(len(blades)):
+            bladeFound = False
 
-    # checks for invalid blades
-    for i1 in range(len(blades)):
-        bladeFound = False
+            for aliases in bladeAliases.values():
+                if (blades[i1].lower()).replace(" ", "") in aliases:
+                    bladeFound = True
+                    blades[i1] = aliases[0]
+                    emojiBlades += "{} ".format(str(client.get_emoji(aliases[-1])))
+                    break
 
-        for aliases in bladeAliases.values():
-            if blades[i1].lower() in aliases:
-                bladeFound = True
-                blades[i1] = aliases[0]
-                emojiBlades += "{} ".format(str(client.get_emoji(aliases[-1])))
-                break
-
-        if not bladeFound:
-            inputError = True
-            error += "Blade #{} ({}) is invalid!\n".format(i1 + 1, blades[i1])
+            if not bladeFound:
+                inputError = True
+                error += "Blade #{} ({}) is invalid!\n".format(i1 + 1, blades[i1])
+    except IndexError:
+        inputError = True
+        error += "At least one argument is missing!\n"
 
     if len(blades) > 24:
         inputError = True
         error += "This turbine is too long!\n"
 
     if not inputError:
-        turbineLength, mode = len(blades), args[0].lower()
+        turbineLength, mode = len(blades), (args[0].lower()).replace(" ", "")
 
         if steamType not in list(steamStats):
             steamRFMB = float(args[1])
@@ -183,11 +186,10 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
 
             if mode == "overhaul":
                 actualExp.append(prevExp*sqrt(bladeStats[blades[i]][0]))
-            elif mode == "underhaul" or mode == "preoverhaul":
+            elif mode == "underhaul" or mode == "preoverhaul" or mode == "pre-overhaul":
                 actualExp.append((prevExp + totalExp)/2)
                 if blades[i] == "sic":
                     bladeMult += 0.05*idealMult(idealExp[i], actualExp[i])
-
             bladeMult += bladeStats[blades[i]][1]*idealMult(idealExp[i], actualExp[i])
             if bladeStats[blades[i]][2]:
                 statorCount += 1
@@ -200,18 +202,20 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
         results = discord.Embed(title="{} Turbine".format(mode.capitalize()), colour=0x123456,
                               description="Stats of the given turbine:")
         results.add_field(name="Blade configuration:", value="{}".format(emojiBlades), inline=False)
-        results.add_field(name="Fuel Stats:", value="Name: {}\nIdeal Expansion: {:.0%}\nBase Energy: {:.0f} RF/mB".format(
-            steamType, idealExpansion, steamRFMB), inline=False)
+        results.add_field(name="Fuel Stats:", value="Name: {}\nBase Energy: {:.0f} RF/mB\nIdeal Expansion: {:.0%}".format(
+            steamType, steamRFMB, idealExpansion), inline=False)
         results.add_field(name="Turbine Stats:", value="Turbine Length: {0} \nTotal Expansion: {1:.2%} [{2:.2f} x {3:.2%}]\n"
         "Rotor Efficiency: {4:.2%}\nEnergy Density*: {5:.2f} RF/mB".format(len(blades), totalExp, idealExpansion, totalExp/idealExpansion,
         bladeMult, energyDensity), inline=False)
-        results.set_footer(text="* Coil conductivity & Throughput bonus (overhaul) excluded! \nTurbine Planner by"
-                                " FishingPole#3673")
+        results.set_footer(text="* Coil conductivity & Throughput bonus (overhaul) excluded! \n"
+                                "Turbine Calculator Bot by FishingPole#3673")
         await ctx.send(embed=results)
     else:
         results = discord.Embed(title="Error in command!", colour=0xd50505, description="Oh no! The bot could not"
                                                                                       " calculate the turbine!")
         results.add_field(name="Errors detected:", value="{}".format(error), inline=False)
+        results.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
         await ctx.send(embed=results)
+
 
 client.run([REDACTED])
