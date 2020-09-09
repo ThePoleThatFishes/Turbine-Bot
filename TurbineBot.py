@@ -72,12 +72,15 @@ async def ping(ctx):
 async def help(ctx):
     helpEmbed = discord.Embed(title="Help menu", colour=0x123456, description="A list of available commands!")
     helpEmbed.add_field(name="&calc/&turbine/&plan", value="Calculates a turbine based on the following syntax:\n"
-    "`&calc [overhaul/underhaul] [fuel type] [blades]` or \n"
-    "`&calc [overhaul/underhaul] [RF/mB of fuel] [ideal expansion] [blades]`\n"
-    "Arguments are separated by spaces, use quotes if an argument consists of more than 1 word! eg.\n"
-    "`&calc overhaul 'high pressure steam' steel steel steel steel` \n"
-    "Capitalization doesn't matter, you can use aliases (click [link]({}) to see which ones you can use) and order of "
-    "arguments matters!".format("https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"), inline=False)
+    "`&calc [mode] [fuel type] [blades]` or \n"
+    "`&calc [mode] [RF/mB of fuel] [ideal expansion] [blades]`\n"
+    "`mode`: Calculation mode. Can be overhaul or underhaul or preoverhaul (underhaul and preoverhaul are the same)\n"
+    "`fuel type`: The type of gas that enters the turbine. See list of aliases for valid names. \n"
+    "`RF/mB of fuel`: Base energy density of gas (**__not compatible with fuel type__**)\n "
+    "`ideal expansion`: The ideal expansion of the gas. Must be input as a number (eg. 400% = 4) (**__not compatible with fuel type__**) \n"
+    "`blades`: The blades used in the turbine. See list of aliases for valid names.\n"
+    "Order of arguments matters, capitalization doesn't matter, multi-word inputs are allowed but use quotes `\"high pressure steam\"`\n"
+    "[List of Aliases]({})".format("https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"), inline=False)
     helpEmbed.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
     helpEmbed.add_field(name="&help", value="Prints this message.", inline=False)
     await ctx.send(embed=helpEmbed)
