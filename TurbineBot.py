@@ -80,26 +80,21 @@ async def ping(ctx):
 async def help(ctx):
     helpEmbed = discord.Embed(title="Help menu", colour=0x123456, description="A list of available commands!")
     helpEmbed.add_field(name="&calc/&turbine/&plan", value="Calculates a turbine based on the following syntax:\n"
-    "`&calc [mode] [fuel type] [blades]` or \n"
-    "`&calc [mode] [RF/mB of fuel] [ideal expansion] [blades]`\n"
+    "`&calc [mode] [fuel type] (dimensions) [blades]` or \n"
+    "`&calc [mode] [RF/mB of fuel] [ideal expansion] (dimensions) [blades]`\n"
     "`mode`: Calculation mode. Can be overhaul or underhaul or preoverhaul (underhaul and preoverhaul are the same)\n"
     "`fuel type`: The type of gas that enters the turbine. See list of aliases for valid names. \n"
     "`RF/mB of fuel`: Base energy density of gas (**__not compatible with fuel type__**)\n "
     "`ideal expansion`: The ideal expansion of the gas. Must be input as a number (eg. 400% = 4) (**__not compatible with fuel type__**) \n"
+    "`dimensions`: Optional parameter. Say `txby`, where x is turbine diameter and y is bearing diameter."
     "`blades`: The blades used in the turbine. See list of aliases for valid names.\n"
     "Order of arguments matters, capitalization doesn't matter, multi-word inputs are allowed but use quotes `\"high pressure steam\"`\n"
     "[List of Aliases]({})".format("https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"), inline=False)
-    helpEmbed.add_field(name="&cost/&resources", value="Prints a list of blocks and blades that make a turbine. Syntax:\n"
-    "`&cost [turbine diameter] [bearing diameter] [turbine string]`\n"
-    "`turbine diameter`: The diameter of the turbine.\n`bearing diameter`: The diameter of the bearing.\n"
-    "`turbine string`: A string that describes the blades of a turbine. Obtained from doing &calc on a turbine.\n"
-    "Order of arguments matters, don't modify the string given or you may get unexpected results!", inline=False)
     helpEmbed.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
     helpEmbed.add_field(name="&help", value="Prints this message.", inline=False)
     helpEmbed.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
     if ctx.channel.id in (752540645117132840, 708428479787434400):
         await ctx.send(embed=helpEmbed)
-
 
 @client.command(aliases=["turbine", "plan"])
 async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal expansion) (blades)
