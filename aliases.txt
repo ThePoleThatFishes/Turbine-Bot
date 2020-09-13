@@ -1,4 +1,13 @@
-List of blade aliases you can use in the bot. Valid aliases are the ones in "double quotes", in the [list]
+Aliases for various objects in the bot
+--------------------------------------
+This file contains all the aliases (alternate names) you can use to refer to an object (a blade, a fuel type or overhaul/preoverhaul).
+On the left, is the name the bot reads it as, on the right is all the equivalent names you can use. eg. for Steel Rotor Blade, you can say "steel", "ste" or "s" and the bot interprets it as "steel"!
+
+Calculation Mode Aliases:
+{               "overhaul": ["overhaul", "oh", "nco", "over"]
+                "pre-overhaul" : ["pre-overhaul", "po", "underhaul", "preoverhaul", "uh", "nc"]}
+
+Blade Aliases:
 {               "trinitite": ["trinitite", "tri"],
                 "thorium": ["thorium", "th", "ths"],
                 "du": ["du", "dus"],
@@ -7,28 +16,24 @@ List of blade aliases you can use in the bot. Valid aliases are the ones in "dou
                 "une-90": ["une-90", "unwieldy-90", "une90"],
                 "une-192": ["une-192", "unwieldy-192", "une192"],
                 "une-231": ["une-231", "unwieldy-231", "une231"],
-                "edelstahl": ["edelstahl", "ultralight-edelstahl", "ul-edel", "ule"],
+                "edelstahl": ["edelstahl", "ultralight-edelstahl", "ul-edel", "ultralightedelstahl", "ule"],
                 "niosteel": ["niosteel", "niobium-steel", "nios"],
                 "steel": ["steel", "ste", "s"],
                 "neptunium": ["neptunium", "np"],
                 "plutonium": ["plutonium", "pu"],
-                "legierung": ["legierung", "ultralight-legierung", "ul-legie", "ull"],
+                "legierung": ["legierung", "ultralight-legierung", "ul-legie", "ultralightlegierung", "ull"],
                 "extnio": ["extnio", "extremenio", "extreme-nio", "enio"],
                 "extreme": ["extreme", "ext", "ex"],
                 "americium": ["americium", "am"],
                 "curium": ["curium", "cm"],
                 "sicnio": ["sicnio", "sicniosic"],
-                "matrix": ["matrix", "ultralight-matrix", "ul-matrix", "ulm"],
+                "matrix": ["matrix", "ultralight-matrix", "ul-matrix", "ultralightmatrix", "ulm"],
                 "sic": ["sic", "sicsiccmc", "sicsic"],
                 "berkelium": ["berkelium", "bk"],
-                "steelcake": ["steelcake", "scake"],
                 "californium": ["californium", "cf"],
-                "hccake": ["hccake", "hardcarbon-cake"],
-                "extcake": ["extcake", "extreme-cake"],
-                "tccake": ["tccake", "thermoconducting-cake"],
-                "siccake": ["siccake", "sicsiccmcake"]}
+                "pancake": ["pancake", "cake"]}
                 
-Valid aliases for turbine fuel types:
+Turbine Fuel Aliases:
 {               "hps": ["hps", "High Pressure Steam", "highpressuresteam", "hpsteam"],
                 "lps": ["lps", "Low Pressure Steam", "lowpressuresteam", "lpsteam"],
                 "steam": ["steam", "Steam", "meksteam", "tes", "forgesteam", "testeam"],
@@ -39,4 +44,4 @@ Valid aliases for turbine fuel types:
                 "co2": ["co2", "Hot Carbon Dioxide", "carbondioxide", "hotco2", "hotcarbondioxide"],
                 "he": ["he", "Hot Helium", "helium", "hothelium", "hothe"],
                 "ar": ["ar", "Hot Argon", "argon", "hotargon", "hotar"],
-                "ne": ["ne", "Hot Neon", "neon", "hotneon", "hotne"]
+                "ne": ["ne", "Hot Neon", "neon", "hotneon", "hotne"]}
