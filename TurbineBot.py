@@ -3,6 +3,7 @@ from discord.ext import commands
 from math import pow, sqrt
 from math import log as ln
 import asyncio
+import re
 
 bladeStats = {"trinitite": [0.6, 0.0, True], "thorium": [0.65, 0.0, True], "du": [0.7, 0.0, True],
               "stator": [0.75, 0.0, True], "e60": [0.8, 0.0, True], "une-90": [0.85, 1.0, False],
@@ -66,7 +67,7 @@ async def on_ready():
 
 @client.command()
 async def ping(ctx):
-    if ctx.channel.id in (752540645117132840, 754459106709995600):
+    if ctx.channel.id == 754459106709995600:
         await ctx.send("Pong! `{:.0f} ms`".format(client.latency*1000))
 
 
@@ -87,7 +88,7 @@ async def help(ctx):
     helpEmbed.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
     helpEmbed.add_field(name="&help", value="Prints this message.", inline=False)
     helpEmbed.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
-    if ctx.channel.id in (752540645117132840, 754459106709995600):
+    if ctx.channel.id == 754459106709995600:
         await ctx.send(embed=helpEmbed)
 
 
@@ -136,9 +137,10 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                 inputError = True
                 error += "Missing expansion coefficient parameter!\n"
 
+            steamType = "Custom"
+
             # checks if turbine dimensions have been entered
-            try:
-                turbineDetect = int(args[3][1])
+            if re.search("t[0-9]", args[3]):
                 try:
                     bearingDetect = (args[3].lower()).index("b")
                     turbineDim = int(args[3][1:bearingDetect])
@@ -149,8 +151,8 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                         bearingDim = int(args[3][bearingDetect + 1:])
                         if not (1 <= bearingDim <= turbineDim - 2 and turbineDim % 2 == bearingDim % 2):
                             inputError = True
-                            error += "Bearing diameter must be between 1 and Turbine diameter - 2, and" \
-                                     " mod(TurbineDim, 2) == mod(BearingDim, 2)!\n"
+                            error += "Bearing diameter must be between 1 and Turbine diameter - 2! If turbine " \
+                                     "diameter is even, bearing must be even; The same applies for odd turbine diameter.\n"
                         else:
                             dimsInput = True
                             blades = args[4:]
@@ -161,7 +163,7 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                     inputError = True
                     error += "Turbine dimensions \"{}\" are invalid!"
 
-            except ValueError:
+            else:
                 dimsInput = False
                 blades = args[3:]
 
@@ -193,20 +195,19 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                 error += "Turbine fuel \"{}\" is invalid!\n".format(steamType)
 
             # checks for dimensions
-            try:
-                turbineDetect = int(args[2][1])
+            if re.search("t[0-9]", args[2]):
                 try:
                     bearingDetect = (args[2].lower()).index("b")
                     turbineDim = int(args[2][1:bearingDetect])
-                    if not(3 <= turbineDim <= 24):
+                    if not (3 <= turbineDim <= 24):
                         inputError = True
                         error += "Turbine diameter must be between 3 and 24 blocks!\n"
                     try:
                         bearingDim = int(args[2][bearingDetect + 1:])
-                        if not(1 <= bearingDim <= turbineDim - 2 and turbineDim % 2 == bearingDim % 2):
+                        if not (1 <= bearingDim <= turbineDim - 2 and turbineDim % 2 == bearingDim % 2):
                             inputError = True
-                            error += "Bearing diameter must be between 1 and Turbine diameter - 2, and" \
-                                     " mod(TurbineDim, 2) == mod(BearingDim, 2)!\n"
+                            error += "Bearing diameter must be between 1 and Turbine diameter - 2! If turbine " \
+                                     "diameter is even, bearing must be even; The same applies for odd turbine diameter.\n"
                         else:
                             dimsInput = True
                             blades = args[3:]
@@ -217,7 +218,7 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                     inputError = True
                     error += "Turbine dimensions \"{}\" are invalid!"
 
-            except ValueError:
+            else:
                 dimsInput = False
                 blades = args[2:]
 
@@ -259,7 +260,6 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
 
     if not inputError:
         turbineLength, mode = len(blades), args[0]
-
         if steamType not in list(steamStats):
             steamRFMB = float(args[1])
             idealExpansion = float(args[2])
@@ -381,7 +381,7 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
 
         results.add_field(name="Turbine Stats:", value=turbineStats, inline=False)
 
-        if ctx.channel.id in (752540645117132840, 754459106709995600):
+        if ctx.channel.id == 754459106709995600:
             if dimsInput:
                 botMessage = await ctx.send(embed=results)
                 await botMessage.add_reaction("\U000025C0")
@@ -417,7 +417,7 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
             error = "{}... (too long)".format(error[:1000])
         results.add_field(name="Errors detected:", value="{}".format(error), inline=False)
         results.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
-        if ctx.channel.id in (752540645117132840, 754459106709995600):
+        if ctx.channel.id == 754459106709995600:
             await ctx.send(embed=results)
 
 
