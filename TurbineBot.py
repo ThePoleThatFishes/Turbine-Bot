@@ -11,9 +11,7 @@ bladeStats = {"trinitite": [0.6, 0.0, True], "thorium": [0.65, 0.0, True], "du":
               "plutonium": [1.50, 1.06, False], "legierung": [1.50, 1.5, False], "extnio": [1.55, 1.1, False],
               "extreme": [1.6, 1.1, False], "americium": [1.65, 1.13, False], "curium": [1.7, 1.16, False],
               "sicnio": [1.75, 1.2, False], "matrix": [1.75, 1.5, False], "sic": [1.8, 1.2, False],
-              "berkelium": [1.9, 1.23, False], "steelcake": [2.0, 1.05, False], "californium": [2.2, 1.27, False],
-              "hccake": [3.0, 1.05, False], "extcake": [4.0, 1.05, False], "tccake": [5.0, 1.05, False],
-              "siccake": [16.0, 1.05, False]}
+              "berkelium": [1.9, 1.23, False], "californium": [2.2, 1.27, False], "pancake": [16.0, 1.05, False]}
 
 bladeAliases = {"trinitite": ["trinitite", "tri", 752973193878175825],
                 "thorium": ["thorium", "th", "ths", 752973193710665809],
@@ -37,12 +35,8 @@ bladeAliases = {"trinitite": ["trinitite", "tri", 752973193878175825],
                 "matrix": ["matrix", "ultralight-matrix", "ul-matrix", "ultralightmatrix", "ulm", 752973096771780721],
                 "sic": ["sic", "sicsiccmc", "sicsic", 752974289569054752],
                 "berkelium": ["berkelium", "bk", 752973096553676931],
-                "steelcake": ["steelcake", "scake", 752973097052668135],
                 "californium": ["californium", "cf", 752973096566128790],
-                "hccake": ["hccake", "hardcarbon-cake", 752973097174302801],
-                "extcake": ["extcake", "extreme-cake", 752973096889090079],
-                "tccake": ["tccake", "thermoconducting-cake", 752973096985690293],
-                "siccake": ["siccake", "sicsiccmcake", 752973097019375617]}
+                "pancake": ["pancake", "cake", 752973097019375617]}
 
 steamStats = {"hps": [16.0, 4.0], "lps": [4.0, 2.0], "steam": [4.0, 2.0], "scs": [16.0, 16.0], "scco2": [24.0, 8.0],
               "n2": [11.0, 2.0], "co2": [14.0, 3.0], "he": [22.0, 6.0], "ar": [17.0, 5.0], "ne": [25.0, 8.0]}
@@ -72,7 +66,7 @@ async def on_ready():
 
 @client.command()
 async def ping(ctx):
-    if ctx.channel.id in (752540645117132840, 708428479787434400):
+    if ctx.channel.id in (752540645117132840, 754459106709995600):
         await ctx.send("Pong! `{:.0f} ms`".format(client.latency*1000))
 
 
@@ -86,15 +80,16 @@ async def help(ctx):
     "`fuel type`: The type of gas that enters the turbine. See list of aliases for valid names. \n"
     "`RF/mB of fuel`: Base energy density of gas (**__not compatible with fuel type__**)\n "
     "`ideal expansion`: The ideal expansion of the gas. Must be input as a number (eg. 400% = 4) (**__not compatible with fuel type__**) \n"
-    "`dimensions`: Optional parameter. Say `txby`, where x is turbine diameter and y is bearing diameter."
+    "`dimensions`: Optional parameter. Say `txby`, where x is turbine diameter and y is bearing diameter.\n"
     "`blades`: The blades used in the turbine. See list of aliases for valid names.\n"
     "Order of arguments matters, capitalization doesn't matter, multi-word inputs are allowed but use quotes `\"high pressure steam\"`\n"
     "[List of Aliases]({})".format("https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"), inline=False)
     helpEmbed.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
     helpEmbed.add_field(name="&help", value="Prints this message.", inline=False)
     helpEmbed.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
-    if ctx.channel.id in (752540645117132840, 708428479787434400):
+    if ctx.channel.id in (752540645117132840, 754459106709995600):
         await ctx.send(embed=helpEmbed)
+
 
 @client.command(aliases=["turbine", "plan"])
 async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal expansion) (blades)
@@ -103,9 +98,14 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
     error, blocksString, turbineStats, turbineDim, bearingDim, dimsInput, bladesString = "", "", "", 3, 1, False, ""
     bladeCounts = {alias: 0 for alias in list(bladeAliases)}
     minStatorExp, minBladeExp = 1, 2**1024
+    sanitizeInput = ("*", "_", "`", "~")
 
     def idealMult(ideal, actual):
         return min(ideal, actual)/max(ideal, actual)
+
+    for i in range(len(args)):
+        for md in sanitizeInput:
+            args[i] = args[i].replace(md, "")
 
     # checks if there's enough arguments
     try:
@@ -237,6 +237,8 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                     blades[i1] = aliases[0]
                     emojiBlades += "{} ".format(str(client.get_emoji(aliases[-1])))
                     bladeCounts[blades[i1]] += 1
+                    if bladeStats[blades[i1]][2]:
+                        statorCount += 1
                     break
 
             if bladeFound and (args[0] in preoverhaulAliases
@@ -279,11 +281,13 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
             bladeMult += bladeStats[blades[i]][1]*idealMult(idealExp[i], actualExp[i])
             if bladeStats[blades[i]][2]:
                 minStatorExp = min(minStatorExp, bladeStats[blades[i]][0])
-                statorCount += 1
             else:
                 minBladeExp = min(minBladeExp, bladeStats[blades[i]][0])
 
-        bladeMult /= turbineLength - statorCount
+        try:
+            bladeMult /= turbineLength - statorCount
+        except ZeroDivisionError:
+            bladeMult = 0
         energyDensity = bladeMult * steamRFMB * idealMult(idealExpansion, totalExp)
         if steamType != "Custom":
             steamType = steamAliases[steamType][1]
@@ -377,7 +381,7 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
 
         results.add_field(name="Turbine Stats:", value=turbineStats, inline=False)
 
-        if ctx.channel.id in (752540645117132840, 708428479787434400):
+        if ctx.channel.id in (752540645117132840, 754459106709995600):
             if dimsInput:
                 botMessage = await ctx.send(embed=results)
                 await botMessage.add_reaction("\U000025C0")
@@ -413,7 +417,7 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
             error = "{}... (too long)".format(error[:1000])
         results.add_field(name="Errors detected:", value="{}".format(error), inline=False)
         results.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
-        if ctx.channel.id in (752540645117132840, 708428479787434400):
+        if ctx.channel.id in (752540645117132840, 754459106709995600):
             await ctx.send(embed=results)
 
 
