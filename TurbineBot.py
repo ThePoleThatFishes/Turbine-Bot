@@ -1,9 +1,12 @@
 import discord
 from discord.ext import commands
-from math import pow, sqrt
+from math import pow, sqrt, ceil
 from math import log as ln
 import asyncio
 import re
+
+token = [REDACTED]
+enabled_channel = [REDACTED]
 
 bladeStats = {"trinitite": [0.6, 0.0, True], "thorium": [0.65, 0.0, True], "du": [0.7, 0.0, True],
               "stator": [0.75, 0.0, True], "e60": [0.8, 0.0, True], "une-90": [0.85, 1.0, False],
@@ -40,7 +43,8 @@ bladeAliases = {"trinitite": ["trinitite", "tri", 752973193878175825],
                 "pancake": ["pancake", "cake", 752973097019375617]}
 
 steamStats = {"hps": [16.0, 4.0], "lps": [4.0, 2.0], "steam": [4.0, 2.0], "scs": [16.0, 16.0], "scco2": [24.0, 8.0],
-              "n2": [11.0, 2.0], "co2": [14.0, 3.0], "he": [22.0, 6.0], "ar": [17.0, 5.0], "ne": [25.0, 8.0]}
+              "n2": [11.0, 2.0], "co2": [14.0, 3.0], "he": [30.0, 4.0], "ar": [12.0, 2.0], "ne": [25.0, 8.0],
+              "kr": [17.0, 5.0], "xe": [22.0, 6.0]}
 
 steamAliases = {"hps": ["hps", "High Pressure Steam", "highpressuresteam", "hpsteam"],
                 "lps": ["lps", "Low Pressure Steam", "lowpressuresteam", "lpsteam"],
@@ -52,7 +56,9 @@ steamAliases = {"hps": ["hps", "High Pressure Steam", "highpressuresteam", "hpst
                 "co2": ["co2", "Hot Carbon Dioxide", "carbondioxide", "hotco2", "hotcarbondioxide"],
                 "he": ["he", "Hot Helium", "helium", "hothelium", "hothe"],
                 "ar": ["ar", "Hot Argon", "argon", "hotargon", "hotar"],
-                "ne": ["ne", "Hot Neon", "neon", "hotneon", "hotne"]}
+                "ne": ["ne", "Hot Neon", "neon", "hotneon", "hotne"],
+                "kr": ["kr", "Hot Krypton", "krypton", "hotkrypton", "hotkr"],
+                "xe": ["xe", "Hot Xenon", "xenon", "hotxenon", "hotxe"]}
 
 overhaulAliases = ["overhaul", "oh", "nco", "over"]
 preoverhaulAliases = ["pre-overhaul", "po", "underhaul", "preoverhaul", "uh", "nc"]
@@ -67,7 +73,7 @@ async def on_ready():
 
 @client.command()
 async def ping(ctx):
-    if ctx.channel.id == 754459106709995600:
+    if ctx.channel.id == enabled_channel:
         await ctx.send("Pong! `{:.0f} ms`".format(client.latency*1000))
 
 
@@ -88,7 +94,7 @@ async def help(ctx):
     helpEmbed.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
     helpEmbed.add_field(name="&help", value="Prints this message.", inline=False)
     helpEmbed.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
-    if ctx.channel.id == 754459106709995600:
+    if ctx.channel.id == enabled_channel:
         await ctx.send(embed=helpEmbed)
 
 
@@ -98,8 +104,8 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
     totalExp, bladeMult, statorCount, steamType, inputError, args = 1, 0, 0, None, False, list(args)
     error, blocksString, turbineStats, turbineDim, bearingDim, dimsInput, bladesString = "", "", "", 3, 1, False, ""
     bladeCounts = {alias: 0 for alias in list(bladeAliases)}
-    minStatorExp, minBladeExp = 1, 2**1024
-    sanitizeInput = ("*", "_", "`", "~")
+    minStatorExp, minBladeExp, maxStatorExp, maxBladeExp = 1, 2**1024, 2**(-1024), 1
+    sanitizeInput = ("*", "_", "`", "~", ",")
 
     def idealMult(ideal, actual):
         return min(ideal, actual)/max(ideal, actual)
@@ -262,14 +268,14 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
         turbineLength, mode = len(blades), args[0]
         if steamType not in list(steamStats):
             steamRFMB = float(args[1])
-            idealExpansion = float(args[2])
+            steamExpansion = float(args[2])
         else:
             steamRFMB = steamStats[steamType][0]
-            idealExpansion = steamStats[steamType][1]
+            steamExpansion = steamStats[steamType][1]
 
         for i in range(turbineLength):
             prevExp = totalExp
-            idealExp.append(pow(idealExpansion, (i + 0.5)/turbineLength))
+            idealExp.append(pow(steamExpansion, (i + 0.5)/turbineLength))
             totalExp *= bladeStats[blades[i]][0]
 
             if mode in overhaulAliases:
@@ -281,22 +287,24 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
             bladeMult += bladeStats[blades[i]][1]*idealMult(idealExp[i], actualExp[i])
             if bladeStats[blades[i]][2]:
                 minStatorExp = min(minStatorExp, bladeStats[blades[i]][0])
+                maxStatorExp = max(maxStatorExp, bladeStats[blades[i]][0])
             else:
                 minBladeExp = min(minBladeExp, bladeStats[blades[i]][0])
+                maxBladeExp = max(maxBladeExp, bladeStats[blades[i]][0])
 
         try:
             bladeMult /= turbineLength - statorCount
         except ZeroDivisionError:
             bladeMult = 0
-        energyDensity = bladeMult * steamRFMB * idealMult(idealExpansion, totalExp)
+        energyDensity = bladeMult * steamRFMB * idealMult(steamExpansion, totalExp)
         if steamType != "Custom":
             steamType = steamAliases[steamType][1]
 
         results = discord.Embed(title="{} Turbine".format(mode.capitalize()), colour=0x123456,
                                 description="Stats of the given turbine:")
         results.add_field(name="Blade configuration:", value="{0}".format(emojiBlades), inline=False)
-        results.add_field(name="Fuel Stats:", value="Name: {}\nBase Energy: {:.0f} RF/mB\nIdeal Expansion: {:.0%}".format(
-            steamType, steamRFMB, idealExpansion), inline=False)
+        results.add_field(name="Fuel Stats:", value="Name: {}\nBase Energy: {:g} RF/mB\nIdeal Expansion: {:.0%}".format(
+            steamType, steamRFMB, steamExpansion), inline=False)
 
         if dimsInput:
             shaftLength = len(blades)
@@ -312,13 +320,21 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
             bladesString += "Total blades: {}\n".format(rotorBlades)
             maxInput = (rotorBlades - statorCount * (rotorBlades//shaftLength))*100
 
+            # Leniency Penalty calcs
+            if steamExpansion <= 1.0 or maxBladeExp <= 1.0:
+                leniencyMult = 2**1024
+            else:
+                leniencyMult = max(1, ceil(ln(steamExpansion)/ln(maxBladeExp)))
+            absoluteLeniency = (rotorBlades//shaftLength) * leniencyMult * 100
+            minInput = max(maxInput - absoluteLeniency, 0)
+
             # Throughput Bonus calcs
             if minBladeExp <= 1.0:
                 effMaxLen = 24.0
             elif minStatorExp >= 1.0:
-                effMaxLen = max(1.0, min(24.0, ln(idealExpansion)/ln(minBladeExp)))
+                effMaxLen = max(1.0, min(24.0, ln(steamExpansion)/ln(minBladeExp)))
             else:
-                effMaxLen = max(1.0, min(24.0, ln(idealExpansion) - 24*ln(minStatorExp)/(ln(minBladeExp)-ln(minStatorExp))))
+                effMaxLen = max(1.0, min(24.0, ln(steamExpansion) - 24*ln(minStatorExp)/(ln(minBladeExp)-ln(minStatorExp))))
 
             lengthBonus = maxInput/(100.0*effMaxLen*(rotorBlades//shaftLength))
             areaBonus = sqrt(2.0*maxInput/(100.0*shaftLength*24.0*effMaxLen))
@@ -340,13 +356,20 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                                                                                                   casings + frames,
                                                                                                   coils, coilPenalty)
 
-                turbineStats = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\nTotal Expansion: {3:.2%} [{4:.2f} x {5:.2%}]" \
-                                "\nRotor Efficiency: {6:.2%}\nEnergy Density\*: {7:.2f} RF/mB\nMax Input: {8:,} mB/t\n" \
+                turbineStats = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\nTotal Expansion: {3:.2%} [{4:g} x {5:.2%}]" \
+                                "\nRotor Efficiency: {6:.2%}\nEnergy Density\*: {7:.2f} RF/mB\nMax Safe Input: {8:,} mB/t\n" \
+                                "Min Input\*\*: {11:,} mB/t\n" \
                                 "Power output\*: {9:,} RF/t\nThroughput Bonus: {10:.2%}".format(turbineDim, len(blades),
-                                                                                              bearingDim, totalExp, idealExpansion,
-                                                                                              totalExp/idealExpansion, bladeMult,
-                                                                                              newEnergyDensity, maxInput, powerGen, throughputBonus)
+                                                                                                bearingDim, totalExp,
+                                                                                                steamExpansion,
+                                                                                                totalExp/steamExpansion,
+                                                                                                bladeMult,
+                                                                                                newEnergyDensity,
+                                                                                                maxInput, powerGen,
+                                                                                                throughputBonus,
+                                                                                                minInput)
                 results.set_footer(text="*Coil efficiency is excluded.\n"
+                                        "**Amount of gas needed to prevent low input penalty.\n"
                                         "Turbine Bot by FishingPole#3673")
                 footer = "*Turbine glass required for a transparent turbine\n" \
                             "**Multiplier applied to coil efficiency when the coils are fewer than the bearings.\n" \
@@ -358,10 +381,10 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                                                                                                   bearings, shafts,
                                                                                                   coils, coilPenalty)
 
-                turbineStats = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\nTotal Expansion: {3:.2%} [{4:.2f} x {5:.2%}]" \
+                turbineStats = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\nTotal Expansion: {3:.2%} [{4:g} x {5:.2%}]" \
                                "\nRotor Efficiency: {6:.2%}\nEnergy Density\*: {7:.2f} RF/mB\nMax Input: {8:,} mB/t\n" \
-                               "Power output\*: {9:,} RF/t".format(turbineDim, len(blades), bearingDim, totalExp, idealExpansion,
-                                                                 totalExp/idealExpansion, bladeMult, energyDensity, maxInput
+                               "Power output\*: {9:,} RF/t".format(turbineDim, len(blades), bearingDim, totalExp, steamExpansion,
+                                                                 totalExp/steamExpansion, bladeMult, energyDensity, maxInput
                                                                  , int(maxInput*energyDensity))
                 results.set_footer(text="*Coil efficiency is excluded.\n"        
                                         "Turbine Bot by FishingPole#3673")
@@ -374,22 +397,22 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
             resources.add_field(name="Blades Required:", value=bladesString, inline=False)
             resources.set_footer(text=footer)
         else:
-            turbineStats = "Shaft Length: {0}\nTotal Expansion: {1:.2%} [{2:.2f} x {3:.2%}]\nRotor Efficiency: {4:.2%}\n" \
-                           "Energy Density:\* {5:.2f} RF/mB".format(len(blades), totalExp, idealExpansion,
-                                                                    totalExp/idealExpansion, bladeMult, energyDensity)
+            turbineStats = "Shaft Length: {0}\nTotal Expansion: {1:.2%} [{2:g} x {3:.2%}]\nRotor Efficiency: {4:.2%}\n" \
+                           "Energy Density:\* {5:.2f} RF/mB".format(len(blades), totalExp, steamExpansion,
+                                                                    totalExp/steamExpansion, bladeMult, energyDensity)
             results.set_footer(text="*Coil conductivity & throughput bonus excluded!\nTurbine Bot by FishingPole#3673")
 
         results.add_field(name="Turbine Stats:", value=turbineStats, inline=False)
 
-        if ctx.channel.id == 754459106709995600:
+        if ctx.channel.id == enabled_channel:
             if dimsInput:
                 botMessage = await ctx.send(embed=results)
-                await botMessage.add_reaction("\U000025C0")
+                await botMessage.add_reaction("\U0000274C")
                 await botMessage.add_reaction("\U000025B6")
-                await botMessage.add_reaction("\U000023F9")
+
 
                 def check(r, u):
-                    return u == ctx.message.author and str(r.emoji) in ("\U000025B6", "\U000025C0", "\U000023F9")
+                    return u == ctx.message.author and str(r.emoji) in ("\U000025B6", "\U000025C0", "\U0000274C")
 
                 while True:
                     try:
@@ -400,11 +423,13 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                     else:
                         if str(reaction.emoji) == "\U000025B6":
                             await botMessage.edit(embed=resources)
-                            await botMessage.remove_reaction(emoji="\U000025B6", member=user)
+                            await botMessage.clear_reaction(emoji="\U000025B6")
+                            await botMessage.add_reaction(emoji="\U000025C0")
                         elif str(reaction.emoji) == "\U000025C0":
                             await botMessage.edit(embed=results)
-                            await botMessage.remove_reaction(emoji="\U000025C0", member=user)
-                        elif str(reaction.emoji) == "\U000023F9":
+                            await botMessage.clear_reaction(emoji="\U000025C0")
+                            await botMessage.add_reaction(emoji="\U000025B6")
+                        elif str(reaction.emoji) == "\U0000274C":
                             await botMessage.clear_reactions()
                             break
 
@@ -417,9 +442,9 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
             error = "{}... (too long)".format(error[:1000])
         results.add_field(name="Errors detected:", value="{}".format(error), inline=False)
         results.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
-        if ctx.channel.id == 754459106709995600:
+        if ctx.channel.id == enabled_channel:
             await ctx.send(embed=results)
 
 
-client.run([REDACTED])
+client.run(token)
 
