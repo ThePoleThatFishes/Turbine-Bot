@@ -66,6 +66,43 @@ preoverhaulAliases = ["pre-overhaul", "po", "underhaul", "preoverhaul", "uh", "n
 client = commands.Bot(command_prefix="&")
 client.remove_command("help")
 
+
+# controls embed menus
+async def embedSetup(ctx, embeds: list):
+    page = 0
+    botMessage = await ctx.send(embed=embeds[page])
+    if len(embeds) > 1:
+        await botMessage.add_reaction("\U0000274C")
+        await botMessage.add_reaction("\U000025C0")
+        await botMessage.add_reaction("\U000025B6")
+
+        def check(r, u):
+            return u == ctx.message.author and str(r.emoji) in ("\U000025B6", "\U000025C0", "\U0000274C")
+
+        while True:
+            try:
+                react, user = await client.wait_for("reaction_add", timeout=60.0, check=check)
+            except asyncio.TimeoutError:
+                await botMessage.clear_reactions()
+                break
+            else:
+                if str(react.emoji) == "\U000025B6":
+                    page += 1
+                    if page == len(embeds):
+                        page = 0
+                    await botMessage.edit(embed=embeds[page])
+                    await botMessage.remove_reaction(emoji="\U000025B6", member=user)
+                elif str(react.emoji) == "\U000025C0":
+                    page -= 1
+                    if page == -1:
+                        page = len(embeds) - 1
+                    await botMessage.edit(embed=embeds[page])
+                    await botMessage.remove_reaction(emoji="\U000025C0", member=user)
+                elif str(react.emoji) == "\U0000274C":
+                    await botMessage.clear_reactions()
+                    break
+
+
 @client.event
 async def on_ready():
     print('Bot online as {0.user}'.format(client))
@@ -79,23 +116,34 @@ async def ping(ctx):
 
 @client.command()
 async def help(ctx):
-    helpEmbed = discord.Embed(title="Help menu", colour=0x123456, description="A list of available commands!")
-    helpEmbed.add_field(name="&calc/&turbine/&plan", value="Calculates a turbine based on the following syntax:\n"
-    "`&calc [mode] [fuel type] (dimensions) [blades]` or \n"
-    "`&calc [mode] [RF/mB of fuel] [ideal expansion] (dimensions) [blades]`\n"
-    "`mode`: Calculation mode. Can be overhaul or underhaul or preoverhaul (underhaul and preoverhaul are the same)\n"
-    "`fuel type`: The type of gas that enters the turbine. See list of aliases for valid names. \n"
-    "`RF/mB of fuel`: Base energy density of gas (**__not compatible with fuel type__**)\n "
-    "`ideal expansion`: The ideal expansion of the gas. Must be input as a number (eg. 400% = 4) (**__not compatible with fuel type__**) \n"
-    "`dimensions`: Optional parameter. Say `txby`, where x is turbine diameter and y is bearing diameter.\n"
-    "`blades`: The blades used in the turbine. See list of aliases for valid names.\n"
-    "Order of arguments matters, capitalization doesn't matter, multi-word inputs are allowed but use quotes `\"high pressure steam\"`\n"
-    "[List of Aliases]({})".format("https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"), inline=False)
-    helpEmbed.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
-    helpEmbed.add_field(name="&help", value="Prints this message.", inline=False)
-    helpEmbed.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
+    helpPage1 = discord.Embed(title="Help menu (Page 1)", colour=0x123456, description="A list of available commands!")
+    helpPage1.add_field(name="&calc/&turbine/&plan", value="Calculate a turbine given some parameters. Syntax:\n"
+    "`&calc [mode] [fuel] (dimensions) [blades]` or \n"
+    "`&calc [mode] [base RF/mB] [ideal expansion] (dimensions) [blades]`\n"
+    "See page 2 for more details!")
+    helpPage1.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
+    helpPage1.add_field(name="&help", value="Prints this message.", inline=False)
+    helpPage1.add_field(name="Navigation", value="You can navigate the embeds by adding to the reactions of the bot.\n"
+    "▶ goes to the next page,\n◀ goes to the previous page,\n❌ exits the navigation menu.")
+    helpPage1.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
+    helpPage2 = discord.Embed(title="Help menu (Page 2)", colour=0x123456, description="[List of Aliases]({})".format(
+        "https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"
+    ))
+    helpPage2.add_field(name="&calc Details", value="`mode`: The calculation mode. Refers to overhaul or pre-overhaul"
+    " NC.\nCheck list of aliases at the top for valid names.\n`fuel`: The type of gas that"
+    " enters the turbine. Usually a type of steam.\nValid names can be found in the list of aliases.\n`base RF/mB`: "
+    "The base energy density of the gas (Can be decimal).\n**__Not compatible with fuel"
+    " type!__**\n`ideal expansion`: The ideal expansion of the gas. \nWritten as a number (eg. 400% = 4). **__Not compatible"
+    " with fuel type!__**\n`dimensions`: Turbine & Bearing dimensions. Written as `txby`, x is turbine diameter\n"
+    "and y is bearing diameter. **__Optional Parameter__**\n"
+    "`blades`: The blades used in the turbine. Each blade is separated by a space.\nValid names can be found in the list"
+    " of aliases.", inline=False)
+    helpPage2.add_field(name="Example of a &calc command", value="`&calc nco hps steel ext s`\nA turbine in NC Overhaul, with"
+    " unspecified dimensions, that uses high pressure steam, and blades used are steel extreme steel.\n `&calc nc lps t8b4 s s`\n"
+    "A 8x8x2 pre-overhaul turbine that has a 4x4 bearing, uses low pressure steam and blades used are steel steel.", inline=False)
+    helpPage2.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
     if ctx.channel.id == enabled_channel:
-        await ctx.send(embed=helpEmbed)
+        await embedSetup(ctx, [helpPage1, helpPage2])
 
 
 @client.command(aliases=["turbine", "plan"])
@@ -322,19 +370,17 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
 
             # Leniency Penalty calcs
             if steamExpansion <= 1.0 or maxBladeExp <= 1.0:
-                leniencyMult = 2**1024
+                effMinLen = 24
             else:
-                leniencyMult = max(1, ceil(ln(steamExpansion)/ln(maxBladeExp)))
-            absoluteLeniency = (rotorBlades//shaftLength) * leniencyMult * 100
-            minInput = max(maxInput - absoluteLeniency, 0)
+                effMinLen: int = ceil(ln(steamExpansion)/ln(maxBladeExp))
+            absoluteLeniency = effMinLen * 400
+            minInput = int(max(0.75*maxInput - absoluteLeniency, 0))
 
             # Throughput Bonus calcs
-            if minBladeExp <= 1.0:
-                effMaxLen = 24.0
-            elif minStatorExp >= 1.0:
-                effMaxLen = max(1.0, min(24.0, ln(steamExpansion)/ln(minBladeExp)))
+            if minBladeExp <= 1.0 or minStatorExp >= 1.0:
+                effMaxLen = 24
             else:
-                effMaxLen = max(1.0, min(24.0, ln(steamExpansion) - 24*ln(minStatorExp)/(ln(minBladeExp)-ln(minStatorExp))))
+                effMaxLen = max(1, min(24, ceil(ln(steamExpansion) - 24*ln(minStatorExp)/(ln(minBladeExp)-ln(minStatorExp)))))
 
             lengthBonus = maxInput/(100.0*effMaxLen*(rotorBlades//shaftLength))
             areaBonus = sqrt(2.0*maxInput/(100.0*shaftLength*24.0*effMaxLen))
@@ -406,33 +452,7 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
 
         if ctx.channel.id == enabled_channel:
             if dimsInput:
-                botMessage = await ctx.send(embed=results)
-                await botMessage.add_reaction("\U0000274C")
-                await botMessage.add_reaction("\U000025B6")
-
-
-                def check(r, u):
-                    return u == ctx.message.author and str(r.emoji) in ("\U000025B6", "\U000025C0", "\U0000274C")
-
-                while True:
-                    try:
-                        reaction, user = await client.wait_for("reaction_add", timeout=60.0, check=check)
-                    except asyncio.TimeoutError:
-                        await botMessage.clear_reactions()
-                        break
-                    else:
-                        if str(reaction.emoji) == "\U000025B6":
-                            await botMessage.edit(embed=resources)
-                            await botMessage.clear_reaction(emoji="\U000025B6")
-                            await botMessage.add_reaction(emoji="\U000025C0")
-                        elif str(reaction.emoji) == "\U000025C0":
-                            await botMessage.edit(embed=results)
-                            await botMessage.clear_reaction(emoji="\U000025C0")
-                            await botMessage.add_reaction(emoji="\U000025B6")
-                        elif str(reaction.emoji) == "\U0000274C":
-                            await botMessage.clear_reactions()
-                            break
-
+                await embedSetup(ctx, [results, resources])
             else:
                 await ctx.send(embed=results)
     else:
@@ -445,6 +465,4 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
         if ctx.channel.id == enabled_channel:
             await ctx.send(embed=results)
 
-
 client.run(token)
-
