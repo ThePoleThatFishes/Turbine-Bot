@@ -1,12 +1,13 @@
 import discord
 from discord.ext import commands
-from math import pow, sqrt, ceil
+from math import pow, sqrt, ceil, sin, pi
 from math import log as ln
 import asyncio
 import re
 
 token = [REDACTED]
 enabled_channel = [REDACTED]
+
 
 bladeStats = {"trinitite": [0.6, 0.0, True], "thorium": [0.65, 0.0, True], "du": [0.7, 0.0, True],
               "stator": [0.75, 0.0, True], "e60": [0.8, 0.0, True], "une-90": [0.85, 1.0, False],
@@ -42,11 +43,16 @@ bladeAliases = {"trinitite": ["trinitite", "tri", 752973193878175825],
                 "californium": ["californium", "cf", 752973096566128790],
                 "pancake": ["pancake", "cake", 752973097019375617]}
 
-steamStats = {"hps": [16.0, 4.0], "lps": [4.0, 2.0], "steam": [4.0, 2.0], "scs": [16.0, 16.0], "scco2": [24.0, 8.0],
+bladeConversions = {"trinitite": "0", "thorium": "1", "du": "2", "stator": "3", "e60": "4", "une-90": "5",
+                    "une-192": "6", "une-231": "7", "edelstahl": "8", "niosteel": "9", "steel": "a", "neptunium": "b",
+                    "plutonium": "c", "legierung": "d", "extnio": "e", "extreme": "f", "americium": "g", "curium": "h",
+                    "sicnio": "i", "matrix": "j", "sic": "k", "berkelium": "l", "californium": "m", "pancake": "n"}
+
+gasStats = {"hps": [16.0, 4.0], "lps": [4.0, 2.0], "steam": [4.0, 2.0], "scs": [16.0, 16.0], "scco2": [24.0, 8.0],
               "n2": [11.0, 2.0], "co2": [14.0, 3.0], "he": [30.0, 4.0], "ar": [12.0, 2.0], "ne": [25.0, 8.0],
               "kr": [17.0, 5.0], "xe": [22.0, 6.0]}
 
-steamAliases = {"hps": ["hps", "High Pressure Steam", "highpressuresteam", "hpsteam"],
+gasAliases = {"hps": ["hps", "High Pressure Steam", "highpressuresteam", "hpsteam"],
                 "lps": ["lps", "Low Pressure Steam", "lowpressuresteam", "lpsteam"],
                 "steam": ["steam", "Steam", "meksteam", "tes", "forgesteam", "testeam"],
                 "scs": ["scs", "Supercritical Steam", "supercriticalsteam", "scsteam"],
@@ -103,6 +109,192 @@ async def embedSetup(ctx, embeds: list):
                     break
 
 
+# calculate stats
+def calcStats(mode, gasName, gasRFMB, gasExp, blades, dims, gasInput, coilEff):
+    def idealMult(ideal, actual):
+        return min(ideal, actual)/max(ideal, actual)
+
+    actualExp, idealExp, embedsList = [], [], []
+    totalExp, bladeMult, minStatorExp, maxStatorExp, minBladeExp = 1.0, 0.0, 1.0, 2.0**(-1000), 2.0**1000
+    maxBladeExp, throughputBonus = 1.0, 1.0
+    statorCount, minInput = 0, 0
+    rotorsDict = {alias: 0 for alias in list(bladeAliases)}
+    bladeString, statsString, blocksString, rotorsString, footerText, footer2Text = "", "", "", "", "", ""
+    turbineString = "/{0}/{1}/{2}/{3}".format(mode, gasName, gasRFMB, gasExp)
+    if dims is not None:
+        turbineString += "/{0}/{1}/".format(dims[0], dims[1])
+    if gasName != "Custom":
+        gasName = gasAliases[gasName][1]
+
+    for i in range(len(blades)):
+        currentBlade = bladeStats[blades[i]]
+        prevExp = totalExp
+        idealExp.append(pow(gasExp, (i + 0.5)/len(blades)))
+        totalExp *= currentBlade[0]
+        bladeString += "{} ".format(client.get_emoji(bladeAliases[blades[i]][-1]))
+        rotorsDict[blades[i]] += 1
+        if currentBlade[2]:
+            statorCount += 1
+        if mode in preoverhaulAliases:
+            actualExp.append((prevExp + totalExp)/2)
+            if blades[i] == "sic":
+                bladeMult += 0.05*idealMult(idealExp[i], actualExp[i])
+        elif mode in overhaulAliases:
+            actualExp.append(prevExp*sqrt(currentBlade[0]))
+            if currentBlade[2]:
+                minStatorExp = min(minStatorExp, currentBlade[0])
+                maxStatorExp = max(maxStatorExp, currentBlade[0])
+            else:
+                minBladeExp = min(minBladeExp, currentBlade[0])
+                maxBladeExp = max(maxBladeExp, currentBlade[0])
+
+        bladeMult += currentBlade[1]*idealMult(idealExp[i], actualExp[i])
+        if dims is not None:
+            turbineString += "{0}".format(bladeConversions[blades[i]])
+    turbineString += "/"
+
+    try:
+        bladeMult /= len(blades) - statorCount
+    except ZeroDivisionError:
+        bladeMult = 0.0
+
+    energyDensity = gasRFMB*bladeMult*idealMult(gasExp, totalExp)
+
+    if dims is not None:  # dims is the tuple (turbineDim, bearingDim) or None if dims aren't input!
+        shaftLen = len(blades)
+        bearings = 2*dims[1]**2
+        frames = 8*(dims[0] + 1) + 4*shaftLen
+        casings = 2*(dims[0] ** 2) + 4*(dims[0]*shaftLen) - 2*bearings - 3  # assumes coils = bearings, 1 inlet & 1 outlet
+        coils = min(bearings, 2*dims[0]**2 - bearings - 2)
+        if bearings > dims[0]**2:  # if bearings are more than half the in/out surface area, all casings are covered by coils
+            casings = 4*(dims[0]*shaftLen) - 1
+        shafts = (bearings*shaftLen) // 2
+        bladeArea = 2*dims[1]*(dims[0]-dims[1])
+        maxInput = bladeArea*(shaftLen - statorCount)*100
+
+        if gasInput is None:
+            gasInput = maxInput
+
+        if mode in overhaulAliases:
+            # low throughput penalty
+            if gasExp <= 1.0 or maxBladeExp <= 1.0:
+                effMinLen = 24.0
+            else:
+                effMinLen = ceil(ln(gasExp)/ln(maxBladeExp))
+            absLeniency = 400*effMinLen
+            minInput = int(max(0, 0.75*maxInput - absLeniency))
+
+            if maxInput == 0:
+                throughputRatio = 1.0
+            else:
+                throughputRatio = min(1.0, (absLeniency + gasInput)/maxInput)
+
+            if throughputRatio >= 0.75:
+                throughputPenalty = 1.0
+            else:
+                throughputPenalty = 0.5*sin(throughputRatio*pi/1.5) + 0.5
+
+            # high throughput bonus
+            if minBladeExp <= 1.0 or minStatorExp >= 1.0:
+                effMaxLen = 24
+            else:
+                effMaxLen = max(1, min(24, ceil(ln(gasExp) - 24*(ln(minStatorExp)/ln(minBladeExp/minStatorExp)))))
+
+            lengthBonus = gasInput/(100.0 * effMaxLen * bladeArea)
+            areaBonus = sqrt(gasInput/(1200.0 * shaftLen * effMaxLen))
+            throughputBonus = 1 + pow(lengthBonus*areaBonus, 2.0/3.0)
+
+            energyDensity *= throughputPenalty*throughputBonus
+
+        if coilEff is not None:
+            energyDensity *= coilEff
+
+        powerOutput = int(energyDensity*gasInput)
+
+        # create field strings
+        # field 1.2: turbine stats (field 1.1, gas stats is created on embed creation later)
+        if mode in overhaulAliases:
+            gasInput = min(gasInput, 2*maxInput)
+            statsString = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\n" \
+                          "Power Output\*: {3:,} RF/t\n" \
+                          "Total Expansion: {4:.2%} [{5:g} x {6:.2%}]\n" \
+                          "Rotor Efficiency: {9:.2%}\n" \
+                          "Throughput Bonus: {7:.2%}\n" \
+                          "Energy Density\*: {8:.2f} RF/mB\n".format(dims[0], shaftLen, dims[1], powerOutput, totalExp,
+                                                                     gasExp, totalExp/gasExp, throughputBonus,
+                                                                     energyDensity, bladeMult)
+            if gasInput:
+                statsString += "Input Rate: {0:,}/{1:,} mB/t [{2:.0%}]\n".format(gasInput, maxInput, gasInput/maxInput)
+                footerText = "*Dynamo efficiency not included.\n"
+                if coilEff:
+                    statsString += "Dynamo Efficiency: {0:.2%}\n".format(coilEff)
+                    footerText = "*Dynamo efficiency included.\n"
+            else:
+                statsString += "Min Input\*\*: {0:,} mB/t\nMax Safe Input: {1:,} mB/t\n".format(minInput, maxInput)
+                footerText = "*Dynamo efficiency not included.\n**Minimum mB/t of gas needed for no penalty.\n"
+        elif mode in preoverhaulAliases:
+            gasInput = min(gasInput, maxInput)
+            statsString = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\n" \
+                          "Power Output\*: {3:,} RF/t\n" \
+                          "Total Expansion: {4:.2%} [{5:g} x {6:.2%}]\n" \
+                          "Rotor Efficiency: {8:.2%}\n" \
+                          "Energy Density\*: {7:.2f} RF/mB\n".format(dims[0], shaftLen, dims[1], powerOutput, totalExp,
+                                                                     gasExp, totalExp / gasExp, energyDensity, bladeMult)
+            if gasInput:
+                statsString += "Input Rate: {0:,}/{1:,} mB/t [{2:.0%}]\n".format(gasInput, maxInput, gasInput/maxInput)
+                if coilEff is None:
+                    footerText = "*Dynamo efficiency not included.\n"
+                else:
+                    statsString += "Dynamo Efficiency: {0:.2%}\n".format(coilEff)
+                    footerText = "*Dynamo efficiency included.\n"
+
+        # field 2.1: blocks required string
+        if mode in overhaulAliases:
+            blocksString = "Casings (total): {4} ({0})*\nCasings (as frame): {1}\nBearings: {2}\nShafts: {3}\nCoils: {5}\n" \
+                           "Inlets: 1\nOutlets: 1\nController: 1\n".format(casings, frames, bearings, shafts,
+                                                                           casings + frames, coils)
+            footer2Text = "*Turbine glass needed for transparent turbine.\n"
+        elif mode in preoverhaulAliases:
+            blocksString = "Casings: {0}\nFrames: {1}\nBearings: {2}\nShafts: {3}\nCoils: {4}\n" \
+                           "Inlets: 1\nOutlets: 1\nController: 1\n".format(casings, frames, bearings, shafts, coils)
+
+        # field 2.2: rotor blade string
+        rotorsString += "Total Blades: {:,}\n".format(bladeArea * shaftLen)
+        for rotorName, rotorCount in rotorsDict.items():
+            if rotorCount == 0:
+                continue
+            else:
+                rotorsString += "{0} x{1:,}\n".format(client.get_emoji(bladeAliases[rotorName][-1]), rotorCount*bladeArea)
+
+    # alternative field 1.2 when dimensions are not input
+    else:
+        statsString = "Shaft Length: {0}\nTotal Expansion: {1:.2%} [{2:g} x {3:.2%}]\n" \
+                      "Rotor Efficiency: {4:.2%}\nEnergy Density\*: {5:.2f} RF/mB".format(len(blades), totalExp,
+                                                                                        gasExp, totalExp/gasExp,
+                                                                                        bladeMult, energyDensity)
+        footerText = "*Any coil and gas input modifiers not included.\n"
+
+    # produce embeds
+    statsPage1 = discord.Embed(title="{} Turbine (Stats)".format(mode.capitalize()), colour=0x123456, description=
+                               "An overview of the given turbine's stats.")
+    statsPage1.add_field(name="Blade Configuration", value=bladeString, inline=False)
+    statsPage1.add_field(name="Gas Stats", value="Name: {0}\nBase Energy: {1:g} RF/mB\nIdeal Expansion: {2:.0%}\n"
+                         .format(gasName, gasRFMB, gasExp), inline=False)
+    statsPage1.add_field(name="Turbine Stats", value=statsString, inline=False)
+    statsPage1.set_footer(text="{}Turbine Calculator Bot by FishingPole#3673".format(footerText))
+    embedsList = [statsPage1]
+    if dims is not None:
+        statsPage1.add_field(name="Turbine String (Copy & paste in &stats command)", value=turbineString, inline=False)
+        statsPage2 = discord.Embed(title="{} Turbine (Blocks)".format(mode.capitalize()), colour=0x123456, description=
+                                   "An overview of the blocks required to build the turbine.")
+        statsPage2.add_field(name="Blocks Required", value=blocksString, inline=False)
+        statsPage2.add_field(name="Blades Required", value=rotorsString, inline=False)
+        statsPage2.set_footer(text="{}Turbine Calculator Bot by FishingPole#3673".format(footer2Text))
+        embedsList.append(statsPage2)
+
+    return embedsList
+
+
 @client.event
 async def on_ready():
     print('Bot online as {0.user}'.format(client))
@@ -115,12 +307,39 @@ async def ping(ctx):
 
 
 @client.command()
+async def smore(ctx):
+    if ctx.channel.id == enabled_channel:
+        await ctx.send("S'more! {}".format(str(client.get_emoji(493612965195677706))))
+
+
+@client.command()
+async def praise(ctx):
+    if ctx.channel.id == enabled_channel:
+        await ctx.send("{}".format(str(client.get_emoji(588415212223201327))))
+
+
+@client.command(aliases=["ban", "banhammer"])
+async def banned(ctx):
+    if ctx.channel.id == enabled_channel:
+        await ctx.send("{}".format(str(client.get_emoji(717806537967534232))))
+
+
+@client.command(aliases=["fishingpole", "FishingPole", "thepolethatfishes", "ThePoleThatFishes"])
+async def pole(ctx):
+    if ctx.channel.id == enabled_channel:
+        await ctx.send("{}".format(str(client.get_emoji(711260788215644230))))
+
+
+@client.command()
 async def help(ctx):
     helpPage1 = discord.Embed(title="Help menu (Page 1)", colour=0x123456, description="A list of available commands!")
     helpPage1.add_field(name="&calc/&turbine/&plan", value="Calculate a turbine given some parameters. Syntax:\n"
     "`&calc [mode] [fuel] (dimensions) [blades]` or \n"
     "`&calc [mode] [base RF/mB] [ideal expansion] (dimensions) [blades]`\n"
     "See page 2 for more details!")
+    helpPage1.add_field(name="&stats", value="Calculate a turbine's stats using specific input rate and dynamo efficiency. Syntax:\n"
+                                             "`&stats [turbine string] [input rate] (dynamo efficiency)`\n"
+                                             "See page 3 for more details!", inline=False)
     helpPage1.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
     helpPage1.add_field(name="&help", value="Prints this message.", inline=False)
     helpPage1.add_field(name="Navigation", value="You can navigate the embeds by adding to the reactions of the bot.\n"
@@ -142,21 +361,29 @@ async def help(ctx):
     " unspecified dimensions, that uses high pressure steam, and blades used are steel extreme steel.\n `&calc nc lps t8b4 s s`\n"
     "A 8x8x2 pre-overhaul turbine that has a 4x4 bearing, uses low pressure steam and blades used are steel steel.", inline=False)
     helpPage2.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
+    helpPage3 = discord.Embed(title="Help menu (Page 3)", colour=0x123456)
+    helpPage3.add_field(name="&stats Details", value="`turbine string`: A string that describes the turbine's dimensions, "
+                                                     "blades, fuel, etc. Obtained by running &calc on your desired turbine.\n"
+                                                     "`input rate`: The gas input rate in mB/t.\n"
+                                                     "`dynamo efficiency`: The dynamo (coil) efficiency of the turbine.\n"
+                                                     "Can be a number or a percentage (eg. 1.039 or 103.9%) "
+                                                     "**__Optional Parameter__**", inline=False)
+    helpPage3.add_field(name="Example of a &stats command", value="`&stats /overhaul/hps/16.0/4.0/10/4/aaaa/ 1450 101%`\n"
+                                                                  "This will calculate the stats of a turbine in overhaul,\n"
+                                                                  "that runs high pressure steam, is 10x10x4, has a 4x4 bearing,\n"
+                                                                  "blades are all steel, input rate is 1450 mB/t,\n"
+                                                                  "and dynamo efficiency is 101%.", inline=False)
+    helpPage3.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
     if ctx.channel.id == enabled_channel:
-        await embedSetup(ctx, [helpPage1, helpPage2])
+        await embedSetup(ctx, [helpPage1, helpPage2, helpPage3])
 
 
 @client.command(aliases=["turbine", "plan"])
 async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal expansion) (blades)
-    actualExp, idealExp, blades, emojiBlades = [], [], [], ""
-    totalExp, bladeMult, statorCount, steamType, inputError, args = 1, 0, 0, None, False, list(args)
-    error, blocksString, turbineStats, turbineDim, bearingDim, dimsInput, bladesString = "", "", "", 3, 1, False, ""
-    bladeCounts = {alias: 0 for alias in list(bladeAliases)}
-    minStatorExp, minBladeExp, maxStatorExp, maxBladeExp = 1, 2**1024, 2**(-1024), 1
+    blades = []
+    gasName, inputError, args = None, False, list(args)
+    error, turbineDim, bearingDim, dimsInput = "", 3, 1, False
     sanitizeInput = ("*", "_", "`", "~", ",")
-
-    def idealMult(ideal, actual):
-        return min(ideal, actual)/max(ideal, actual)
 
     for i in range(len(args)):
         for md in sanitizeInput:
@@ -183,15 +410,19 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                 error += "Turbine fuel must have a positive energy density!\n"
 
             try:
-                typeDetection = float(args[2])
-                if typeDetection <= 0.0:
+                if args[2].endswith("%"):
+                    args[2] = args[2].replace("%", "")
+                    args[2] = float(args[2])/100.0
+                else:
+                    args[2] = float(args[2])
+                if args[2] <= 0.0:
                     inputError = True
                     error += "Turbine fuel must have a positive expansion coefficient!\n"
             except ValueError:
                 inputError = True
                 error += "Missing expansion coefficient parameter!\n"
 
-            steamType = "Custom"
+            gasName = "Custom"
 
             # checks if turbine dimensions have been entered
             if re.search("t[0-9]", args[3]):
@@ -231,22 +462,22 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                 pass
 
             steamFound = False
-            steamType = args[1]
+            gasName = args[1]
 
-            for aliases in steamAliases.values():
-                if (steamType.lower()).replace(" ", "") in aliases:
-                    steamType = aliases[0]
+            for aliases in gasAliases.values():
+                if (gasName.lower()).replace(" ", "") in aliases:
+                    gasName = aliases[0]
                     steamFound = True
                     break
 
             if steamFound and (args[0] in preoverhaulAliases
-                               and steamType not in ("hps", "lps", "steam")):
+                               and gasName not in ("hps", "lps", "steam")):
                 inputError = True
-                error += "Turbine fuel \"{}\" can't be used in {}!\n".format(steamType, args[0])
+                error += "Turbine fuel \"{}\" can't be used in {}!\n".format(gasName, args[0])
 
             if not steamFound:
                 inputError = True
-                error += "Turbine fuel \"{}\" is invalid!\n".format(steamType)
+                error += "Turbine fuel \"{}\" is invalid!\n".format(gasName)
 
             # checks for dimensions
             if re.search("t[0-9]", args[2]):
@@ -290,11 +521,6 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
                 if blades[i1] in aliases:
                     bladeFound = True
                     blades[i1] = aliases[0]
-                    emojiBlades += "{} ".format(str(client.get_emoji(aliases[-1])))
-                    bladeCounts[blades[i1]] += 1
-                    if bladeStats[blades[i1]][2]:
-                        statorCount += 1
-                    break
 
             if bladeFound and (args[0] in preoverhaulAliases
                                and blades[i1] not in ("stator", "steel", "extreme", "sic")):
@@ -313,148 +539,22 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
         error += "This turbine is too long!\n"
 
     if not inputError:
-        turbineLength, mode = len(blades), args[0]
-        if steamType not in list(steamStats):
-            steamRFMB = float(args[1])
-            steamExpansion = float(args[2])
+        mode = args[0]
+        if gasName not in list(gasStats):
+            gasRFMB = float(args[1])
+            gasExp = float(args[2])
         else:
-            steamRFMB = steamStats[steamType][0]
-            steamExpansion = steamStats[steamType][1]
-
-        for i in range(turbineLength):
-            prevExp = totalExp
-            idealExp.append(pow(steamExpansion, (i + 0.5)/turbineLength))
-            totalExp *= bladeStats[blades[i]][0]
-
-            if mode in overhaulAliases:
-                actualExp.append(prevExp*sqrt(bladeStats[blades[i]][0]))
-            elif mode in preoverhaulAliases:
-                actualExp.append((prevExp + totalExp)/2)
-                if blades[i] == "sic":
-                    bladeMult += 0.05*idealMult(idealExp[i], actualExp[i])
-            bladeMult += bladeStats[blades[i]][1]*idealMult(idealExp[i], actualExp[i])
-            if bladeStats[blades[i]][2]:
-                minStatorExp = min(minStatorExp, bladeStats[blades[i]][0])
-                maxStatorExp = max(maxStatorExp, bladeStats[blades[i]][0])
-            else:
-                minBladeExp = min(minBladeExp, bladeStats[blades[i]][0])
-                maxBladeExp = max(maxBladeExp, bladeStats[blades[i]][0])
-
-        try:
-            bladeMult /= turbineLength - statorCount
-        except ZeroDivisionError:
-            bladeMult = 0
-        energyDensity = bladeMult * steamRFMB * idealMult(steamExpansion, totalExp)
-        if steamType != "Custom":
-            steamType = steamAliases[steamType][1]
-
-        results = discord.Embed(title="{} Turbine".format(mode.capitalize()), colour=0x123456,
-                                description="Stats of the given turbine:")
-        results.add_field(name="Blade configuration:", value="{0}".format(emojiBlades), inline=False)
-        results.add_field(name="Fuel Stats:", value="Name: {}\nBase Energy: {:g} RF/mB\nIdeal Expansion: {:.0%}".format(
-            steamType, steamRFMB, steamExpansion), inline=False)
+            gasRFMB = gasStats[gasName][0]
+            gasExp = gasStats[gasName][1]
 
         if dimsInput:
-            shaftLength = len(blades)
-            bearings = 2 * (bearingDim ** 2)
-            frames = 8 * (turbineDim + 1) + 4 * shaftLength
-            casings = 2 * (turbineDim ** 2) + 4 * (turbineDim * shaftLength) - 2 * bearings - 3
-            coils = min(bearings, 2 * turbineDim ** 2 - bearings - 2)
-            if bearings > turbineDim ** 2:
-                casings = 4 * (turbineDim * shaftLength) - 1
-            shafts = (shaftLength * bearings) // 2
-            rotorBlades = 2 * shaftLength * bearingDim * (turbineDim - bearingDim)
-            coilPenalty = coils / bearings  # shows penalty for not enough coils
-            bladesString += "Total blades: {}\n".format(rotorBlades)
-            maxInput = (rotorBlades - statorCount * (rotorBlades//shaftLength))*100
-
-            # Leniency Penalty calcs
-            if steamExpansion <= 1.0 or maxBladeExp <= 1.0:
-                effMinLen = 24
-            else:
-                effMinLen: int = ceil(ln(steamExpansion)/ln(maxBladeExp))
-            absoluteLeniency = effMinLen * 400
-            minInput = int(max(0.75*maxInput - absoluteLeniency, 0))
-
-            # Throughput Bonus calcs
-            if minBladeExp <= 1.0 or minStatorExp >= 1.0:
-                effMaxLen = 24
-            else:
-                effMaxLen = max(1, min(24, ceil(ln(steamExpansion) - 24*ln(minStatorExp)/(ln(minBladeExp)-ln(minStatorExp)))))
-
-            lengthBonus = maxInput/(100.0*effMaxLen*(rotorBlades//shaftLength))
-            areaBonus = sqrt(2.0*maxInput/(100.0*shaftLength*24.0*effMaxLen))
-            throughputBonus = 1 + pow(lengthBonus*areaBonus, 2.0/3.0)
-            newEnergyDensity = energyDensity*throughputBonus
-            powerGen = int(newEnergyDensity*maxInput)
-
-            for bladeName, bladeCount in bladeCounts.items():
-                if bladeCount == 0:
-                    continue
-                else:
-                    bladeCount *= rotorBlades // shaftLength
-                    bladesString += "{0} x{1}\n".format(client.get_emoji(bladeAliases[bladeName][-1]), bladeCount)
-
-            if mode in overhaulAliases:
-                blocksString = "Casings (total): {4} ({0})*\nCasings (as frame): {1}\nBearings: {2}\nShafts: {3}\nCoils: {5}\n" \
-                               "Inlets: 1\nOutlets: 1\nController: 1\nCoil Sparsity Penalty: {6:.2f}\**\n".format(casings, frames,
-                                                                                                  bearings, shafts,
-                                                                                                  casings + frames,
-                                                                                                  coils, coilPenalty)
-
-                turbineStats = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\nTotal Expansion: {3:.2%} [{4:g} x {5:.2%}]" \
-                                "\nRotor Efficiency: {6:.2%}\nEnergy Density\*: {7:.2f} RF/mB\nMax Safe Input: {8:,} mB/t\n" \
-                                "Min Input\*\*: {11:,} mB/t\n" \
-                                "Power output\*: {9:,} RF/t\nThroughput Bonus: {10:.2%}".format(turbineDim, len(blades),
-                                                                                                bearingDim, totalExp,
-                                                                                                steamExpansion,
-                                                                                                totalExp/steamExpansion,
-                                                                                                bladeMult,
-                                                                                                newEnergyDensity,
-                                                                                                maxInput, powerGen,
-                                                                                                throughputBonus,
-                                                                                                minInput)
-                results.set_footer(text="*Coil efficiency is excluded.\n"
-                                        "**Amount of gas needed to prevent low input penalty.\n"
-                                        "Turbine Bot by FishingPole#3673")
-                footer = "*Turbine glass required for a transparent turbine\n" \
-                            "**Multiplier applied to coil efficiency when the coils are fewer than the bearings.\n" \
-                            "Turbine Bot by FishingPole#3673"
-
-            elif mode in preoverhaulAliases:
-                blocksString = "Casings: {0}\nFrames: {1}\nBearings: {2}\nShafts: {3}\nCoils: {4}\n" \
-                               "Inlets: 1\nOutlets: 1\nController: 1\nCoil Sparsity Penalty*: {5:.2f}\n".format(casings, frames,
-                                                                                                  bearings, shafts,
-                                                                                                  coils, coilPenalty)
-
-                turbineStats = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\nTotal Expansion: {3:.2%} [{4:g} x {5:.2%}]" \
-                               "\nRotor Efficiency: {6:.2%}\nEnergy Density\*: {7:.2f} RF/mB\nMax Input: {8:,} mB/t\n" \
-                               "Power output\*: {9:,} RF/t".format(turbineDim, len(blades), bearingDim, totalExp, steamExpansion,
-                                                                 totalExp/steamExpansion, bladeMult, energyDensity, maxInput
-                                                                 , int(maxInput*energyDensity))
-                results.set_footer(text="*Coil efficiency is excluded.\n"        
-                                        "Turbine Bot by FishingPole#3673")
-                footer = "*Multiplier applied to coil efficiency when the coils are fewer than the bearings.\n" \
-                         "Turbine Bot by FishingPole#3673"
-
-            resources = discord.Embed(title="{} Turbine Blocks List".format(mode.capitalize()), colour=0x123456,
-                                      description="A list of blocks needed to construct the turbine.")
-            resources.add_field(name="Blocks Required:", value=blocksString, inline=False)
-            resources.add_field(name="Blades Required:", value=bladesString, inline=False)
-            resources.set_footer(text=footer)
+            embedsList = calcStats(mode, gasName, gasRFMB, gasExp, blades, (turbineDim, bearingDim), None, None)
         else:
-            turbineStats = "Shaft Length: {0}\nTotal Expansion: {1:.2%} [{2:g} x {3:.2%}]\nRotor Efficiency: {4:.2%}\n" \
-                           "Energy Density:\* {5:.2f} RF/mB".format(len(blades), totalExp, steamExpansion,
-                                                                    totalExp/steamExpansion, bladeMult, energyDensity)
-            results.set_footer(text="*Coil conductivity & throughput bonus excluded!\nTurbine Bot by FishingPole#3673")
-
-        results.add_field(name="Turbine Stats:", value=turbineStats, inline=False)
+            embedsList = calcStats(mode, gasName, gasRFMB, gasExp, blades, None, None, None)
 
         if ctx.channel.id == enabled_channel:
-            if dimsInput:
-                await embedSetup(ctx, [results, resources])
-            else:
-                await ctx.send(embed=results)
+            await embedSetup(ctx, embedsList)
+
     else:
         results = discord.Embed(title="Error in command!", colour=0xd50505, description="Oh no! The bot could not"
                                                                                       " calculate the turbine!")
@@ -463,6 +563,59 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
         results.add_field(name="Errors detected:", value="{}".format(error), inline=False)
         results.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
         if ctx.channel.id == enabled_channel:
-            await ctx.send(embed=results)
+            await embedSetup(ctx, [results])
+
+
+@client.command()
+async def stats(ctx, *args):  # &stats (turbine string) (mB/t input) (coil efficiency)
+    args, inputError = list(args), False
+    turbineInfo, bladeList, embedsList, errorString = [], [], [], ""
+
+    try:
+        args[1] = int(args[1])
+        if args[1] < 0:
+            inputError = True
+            errorString += "Gas input must be a positive number!\n"
+    except ValueError:
+        inputError = True
+        errorString += "Gas input must be a positive number!\n"
+
+    try:
+        if args[2].endswith("%"):
+            args[2] = args[2].replace("%", "")
+            args[2] = float(args[2])/100.0
+        else:
+            args[2] = float(args[2])
+    except IndexError:
+        args.append(None)
+    except ValueError:
+        inputError = True
+        errorString += "Dynamo efficiency must be a positive number!\n"
+
+    if not inputError:
+        if args[0].count("/") == 8:
+            slash2 = 0
+            for i in range(7):
+                slash1 = slash2
+                slash2 = args[0].find("/", slash1 + 1)
+                turbineInfo.append(args[0][slash1 + 1:slash2])
+
+        for char in turbineInfo[-1]:
+            if char in bladeConversions.values():
+                charPos = list(bladeConversions.values()).index(char)
+                bladeList.append(list(bladeConversions)[charPos])
+
+        embedsList = calcStats(turbineInfo[0], turbineInfo[1], float(turbineInfo[2]), float(turbineInfo[3]), bladeList,
+                               (int(turbineInfo[4]), int(turbineInfo[5])), args[1], args[2])
+    else:
+        errorEmbed = discord.Embed(title="Error in command!", colour=0xd50505, description="Oh no! The bot could not"
+                                                                                        " calculate the turbine!")
+        errorEmbed.add_field(name="Errors detected:", value="{}".format(errorString), inline=False)
+        errorEmbed.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
+        if ctx.channel.id == enabled_channel:
+            await embedSetup(ctx, [errorEmbed])
+
+    await embedSetup(ctx, embedsList)
+
 
 client.run(token)
