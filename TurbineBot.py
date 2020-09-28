@@ -214,7 +214,7 @@ def calcStats(mode, gasName, gasRFMB, gasExp, blades, dims, gasInput, coilEff):
         # create field strings
         # field 1.2: turbine stats (field 1.1, gas stats is created on embed creation later)
         if mode in overhaulAliases:
-            gasInput = min(gasInput, 2*maxInput)
+            gasInput = int(min(gasInput, 2*maxInput))
             statsString = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\n" \
                           "Power Output\*: {3:,} RF/t\n" \
                           "Total Expansion: {4:.2%} [{5:g} x {6:.2%}]\n" \
@@ -224,29 +224,26 @@ def calcStats(mode, gasName, gasRFMB, gasExp, blades, dims, gasInput, coilEff):
                                                                      gasExp, totalExp/gasExp, throughputBonus,
                                                                      energyDensity, bladeMult)
             if gasInput:
-                statsString += "Input Rate: {0:,}/{1:,} mB/t [{2:.0%}]\n".format(gasInput, maxInput, gasInput/maxInput)
-                footerText = "*Dynamo efficiency not included.\n"
+                statsString += "Input Rate: {0:,}/{1:,} mB/t [{2:.0%}]\n" \
+                               "Min Input\*\*: {3:,} mB/t\n".format(gasInput, maxInput, gasInput/maxInput, minInput)
+                footerText = "*Dynamo efficiency not included.\n**Minimum mB/t of gas needed for no penalty.\n"
                 if coilEff:
                     statsString += "Dynamo Efficiency: {0:.2%}\n".format(coilEff)
-                    footerText = "*Dynamo efficiency included.\n"
-            else:
-                statsString += "Min Input\*\*: {0:,} mB/t\nMax Safe Input: {1:,} mB/t\n".format(minInput, maxInput)
-                footerText = "*Dynamo efficiency not included.\n**Minimum mB/t of gas needed for no penalty.\n"
+                    footerText = "*Dynamo efficiency included.\n**Minimum mB/t of gas needed for no penalty.\n"
         elif mode in preoverhaulAliases:
-            gasInput = min(gasInput, maxInput)
+            gasInput = int(min(gasInput, maxInput))
             statsString = "Dimensions: {0}x{0}x{1} ({2}x{2} Bearing)\n" \
                           "Power Output\*: {3:,} RF/t\n" \
                           "Total Expansion: {4:.2%} [{5:g} x {6:.2%}]\n" \
                           "Rotor Efficiency: {8:.2%}\n" \
                           "Energy Density\*: {7:.2f} RF/mB\n".format(dims[0], shaftLen, dims[1], powerOutput, totalExp,
                                                                      gasExp, totalExp / gasExp, energyDensity, bladeMult)
-            if gasInput:
-                statsString += "Input Rate: {0:,}/{1:,} mB/t [{2:.0%}]\n".format(gasInput, maxInput, gasInput/maxInput)
-                if coilEff is None:
-                    footerText = "*Dynamo efficiency not included.\n"
-                else:
-                    statsString += "Dynamo Efficiency: {0:.2%}\n".format(coilEff)
-                    footerText = "*Dynamo efficiency included.\n"
+            statsString += "Input Rate: {0:,}/{1:,} mB/t [{2:.0%}]\n".format(gasInput, maxInput, gasInput/maxInput)
+            if coilEff is None:
+                footerText = "*Dynamo efficiency not included.\n"
+            else:
+                statsString += "Dynamo Efficiency: {0:.2%}\n".format(coilEff)
+                footerText = "*Dynamo efficiency included.\n"
 
         # field 2.1: blocks required string
         if mode in overhaulAliases:
@@ -332,50 +329,63 @@ async def pole(ctx):
 
 @client.command()
 async def help(ctx):
+    footer = "Turbine Calculator Bot by FishingPole#3673"
     helpPage1 = discord.Embed(title="Help menu (Page 1)", colour=0x123456, description="A list of available commands!")
     helpPage1.add_field(name="&calc/&turbine/&plan", value="Calculate a turbine given some parameters. Syntax:\n"
     "`&calc [mode] [fuel] (dimensions) [blades]` or \n"
     "`&calc [mode] [base RF/mB] [ideal expansion] (dimensions) [blades]`\n"
-    "See page 2 for more details!")
+    "See page 3 for more details!")
     helpPage1.add_field(name="&stats", value="Calculate a turbine's stats using specific input rate and dynamo efficiency. Syntax:\n"
                                              "`&stats [turbine string] [input rate] (dynamo efficiency)`\n"
-                                             "See page 3 for more details!", inline=False)
-    helpPage1.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
+                                             "See page 4 for more details!", inline=False)
     helpPage1.add_field(name="&help", value="Prints this message.", inline=False)
+    helpPage1.add_field(name="&ping", value="The infamous ping command. Returns ping (in ms) of the bot.", inline=False)
+    helpPage1.add_field(name="Easter eggs!", value="The bot also contains a couple easter egg commands! Can you find them?", inline=False)
     helpPage1.add_field(name="Navigation", value="You can navigate the embeds by adding to the reactions of the bot.\n"
     "▶ goes to the next page,\n◀ goes to the previous page,\n❌ exits the navigation menu.")
-    helpPage1.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
-    helpPage2 = discord.Embed(title="Help menu (Page 2)", colour=0x123456, description="[List of Aliases]({})".format(
+    helpPage1.set_footer(text=footer)
+    helpPage2 = discord.Embed(title="Help menu (Page 2)", colour=0x123456, description="A list of common aliases you can use!")
+    helpPage2.add_field(name="NC Version", value="NC Overhaul: `nco`, `overhaul`\n"
+                                                 "NC Preoverhaul: `nc`, `pre-overhaul`, `underhaul`", inline=False)
+    helpPage2.add_field(name="Steam Type", value="High Pressure Steam: `hps`, `hpsteam`\n"
+                                                 "Low Pressure Steam: `lps`, `lpsteam`\n"
+                                                 "Steam (from other mods): `steam`, `meksteam`, `testeam`", inline=False)
+    helpPage2.add_field(name="Blades", value="Stator: `st`, `sta`, `:stator:`\n"
+                                             "Steel: `s`, `ste`, `:steel:`\n"
+                                             "Extreme: `ext`, `ex`, `:extreme:`\n"
+                                             "SiC-SiC CMC: `sic`, `sicsic`, `:sic:`", inline=False)
+    helpPage2.set_footer(text=footer)
+    helpPage3 = discord.Embed(title="Help menu (Page 3)", colour=0x123456, description="[Full List of Aliases]({})".format(
         "https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"
     ))
-    helpPage2.add_field(name="&calc Details", value="`mode`: The calculation mode. Refers to overhaul or pre-overhaul"
+    helpPage3.add_field(name="&calc Details", value="`mode`: The calculation mode. Refers to overhaul or pre-overhaul"
     " NC.\nCheck list of aliases at the top for valid names.\n`fuel`: The type of gas that"
     " enters the turbine. Usually a type of steam.\nValid names can be found in the list of aliases.\n`base RF/mB`: "
     "The base energy density of the gas (Can be decimal).\n**__Not compatible with fuel"
-    " type!__**\n`ideal expansion`: The ideal expansion of the gas. \nWritten as a number (eg. 400% = 4). **__Not compatible"
+    " type!__**\n`ideal expansion`: The ideal expansion of the gas. \nWritten as a number or a percentage. (eg. 4 and 400% are both ok)\n**__Not compatible"
     " with fuel type!__**\n`dimensions`: Turbine & Bearing dimensions. Written as `txby`, x is turbine diameter\n"
     "and y is bearing diameter. **__Optional Parameter__**\n"
     "`blades`: The blades used in the turbine. Each blade is separated by a space.\nValid names can be found in the list"
-    " of aliases.", inline=False)
-    helpPage2.add_field(name="Example of a &calc command", value="`&calc nco hps steel ext s`\nA turbine in NC Overhaul, with"
+    " of aliases. (top of the embed)", inline=False)
+    helpPage3.add_field(name="Example of a &calc command", value="`&calc nco hps steel ext s`\nA turbine in NC Overhaul, with"
     " unspecified dimensions, that uses high pressure steam, and blades used are steel extreme steel.\n `&calc nc lps t8b4 s s`\n"
     "A 8x8x2 pre-overhaul turbine that has a 4x4 bearing, uses low pressure steam and blades used are steel steel.", inline=False)
-    helpPage2.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
-    helpPage3 = discord.Embed(title="Help menu (Page 3)", colour=0x123456)
-    helpPage3.add_field(name="&stats Details", value="`turbine string`: A string that describes the turbine's dimensions, "
+    helpPage3.set_footer(text=footer)
+    helpPage4 = discord.Embed(title="Help menu (Page 4)", colour=0x123456)
+    helpPage4.add_field(name="&stats Details", value="`turbine string`: A string that describes the turbine's dimensions, "
                                                      "blades, fuel, etc. Obtained by running &calc on your desired turbine.\n"
                                                      "`input rate`: The gas input rate in mB/t.\n"
                                                      "`dynamo efficiency`: The dynamo (coil) efficiency of the turbine.\n"
                                                      "Can be a number or a percentage (eg. 1.039 or 103.9%) "
                                                      "**__Optional Parameter__**", inline=False)
-    helpPage3.add_field(name="Example of a &stats command", value="`&stats /overhaul/hps/16.0/4.0/10/4/aaaa/ 1450 101%`\n"
+    helpPage4.add_field(name="Example of a &stats command", value="`&stats /overhaul/hps/16.0/4.0/10/4/aaaa/ 1450 101%`\n"
                                                                   "This will calculate the stats of a turbine in overhaul,\n"
                                                                   "that runs high pressure steam, is 10x10x4, has a 4x4 bearing,\n"
                                                                   "blades are all steel, input rate is 1450 mB/t,\n"
                                                                   "and dynamo efficiency is 101%.", inline=False)
-    helpPage3.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
+    helpPage4.set_footer(text=footer)
     if ctx.channel.id == enabled_channel:
-        await embedSetup(ctx, [helpPage1, helpPage2, helpPage3])
+        await embedSetup(ctx, [helpPage1, helpPage2, helpPage3, helpPage4])
 
 
 @client.command(aliases=["turbine", "plan"])
@@ -537,6 +547,9 @@ async def calc(ctx, *args):  # args: (overhaul/underhaul) (RF density) (ideal ex
     if len(blades) > 24:
         inputError = True
         error += "This turbine is too long!\n"
+    elif len(blades) < 1:
+        inputError = True
+        error += "This turbine is too short!\n"
 
     if not inputError:
         mode = args[0]
@@ -572,13 +585,16 @@ async def stats(ctx, *args):  # &stats (turbine string) (mB/t input) (coil effic
     turbineInfo, bladeList, embedsList, errorString = [], [], [], ""
 
     try:
-        args[1] = int(args[1])
+        args[1] = float(args[1])
         if args[1] < 0:
             inputError = True
             errorString += "Gas input must be a positive number!\n"
     except ValueError:
         inputError = True
         errorString += "Gas input must be a positive number!\n"
+    except IndexError:
+        inputError = True
+        errorString += "Gas input is missing!\n"
 
     try:
         if args[2].endswith("%"):
@@ -607,6 +623,8 @@ async def stats(ctx, *args):  # &stats (turbine string) (mB/t input) (coil effic
 
         embedsList = calcStats(turbineInfo[0], turbineInfo[1], float(turbineInfo[2]), float(turbineInfo[3]), bladeList,
                                (int(turbineInfo[4]), int(turbineInfo[5])), args[1], args[2])
+        if ctx.channel.id == enabled_channel:
+            await embedSetup(ctx, embedsList)
     else:
         errorEmbed = discord.Embed(title="Error in command!", colour=0xd50505, description="Oh no! The bot could not"
                                                                                         " calculate the turbine!")
@@ -614,8 +632,6 @@ async def stats(ctx, *args):  # &stats (turbine string) (mB/t input) (coil effic
         errorEmbed.set_footer(text="Turbine Calculator Bot by FishingPole#3673")
         if ctx.channel.id == enabled_channel:
             await embedSetup(ctx, [errorEmbed])
-
-    await embedSetup(ctx, embedsList)
 
 
 client.run(token)
