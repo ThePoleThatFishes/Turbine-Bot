@@ -16,7 +16,9 @@ bladeStats = {"trinitite": [0.6, 0.0, True], "thorium": [0.65, 0.0, True], "du":
               "plutonium": [1.50, 1.06, False], "legierung": [1.50, 1.5, False], "extnio": [1.55, 1.1, False],
               "extreme": [1.6, 1.1, False], "americium": [1.65, 1.13, False], "curium": [1.7, 1.16, False],
               "sicnio": [1.75, 1.2, False], "matrix": [1.75, 1.5, False], "sic": [1.8, 1.2, False],
-              "berkelium": [1.9, 1.23, False], "californium": [2.2, 1.27, False], "pancake": [16.0, 1.05, False]}
+              "berkelium": [1.9, 1.23, False], "steelcake": [2.0, 1.0, False], "californium": [2.2, 1.27, False],
+              "hccake": [3.0, 1.08, False], "extremecake": [4.0, 1.06, False], "tccake": [5.0, 1.08, False],
+              "febcake": [6.0, 1.08, False], "toughcake": [8.0, 1.16, False], "siccake": [16.0, 1.20, False]}
 
 bladeAliases = {"trinitite": ["trinitite", "tri", 752973193878175825],
                 "thorium": ["thorium", "th", "ths", 752973193710665809],
@@ -40,17 +42,24 @@ bladeAliases = {"trinitite": ["trinitite", "tri", 752973193878175825],
                 "matrix": ["matrix", "ultralight-matrix", "ul-matrix", "ultralightmatrix", "ulm", 752973096771780721],
                 "sic": ["sic", "sicsiccmc", "sicsic", 752974289569054752],
                 "berkelium": ["berkelium", "bk", 752973096553676931],
+                "steelcake": ["steelcake", "scake", 761850409538551819],
                 "californium": ["californium", "cf", 752973096566128790],
-                "pancake": ["pancake", "cake", 752973097019375617]}
+                "hccake": ["hccake", "hardcarboncake", 761850409110732811],
+                "extremecake": ["extremecake", "extcake", 761850409835954196],
+                "tccake": ["tccake", "thermoconductingcake", 761850409366978571],
+                "febcake": ["febcake", "ferroboroncake", 761850277619302401],
+                "toughcake": ["toughcake", "tcake", 761850277514575882],
+                "siccake": ["siccake", "sicsiccake", 761850409370517515]}
 
 bladeConversions = {"trinitite": "0", "thorium": "1", "du": "2", "stator": "3", "e60": "4", "une-90": "5",
                     "une-192": "6", "une-231": "7", "edelstahl": "8", "niosteel": "9", "steel": "a", "neptunium": "b",
                     "plutonium": "c", "legierung": "d", "extnio": "e", "extreme": "f", "americium": "g", "curium": "h",
-                    "sicnio": "i", "matrix": "j", "sic": "k", "berkelium": "l", "californium": "m", "pancake": "n"}
+                    "sicnio": "i", "matrix": "j", "sic": "k", "berkelium": "l", "steelcake": "m", "californium": "n",
+                    "hccake": "o", "extremecake": "p", "tccake": "q", "febcake": "r", "toughcake": "s", "siccake": "t"}
 
 gasStats = {"hps": [16.0, 4.0], "lps": [4.0, 2.0], "steam": [4.0, 2.0], "scs": [16.0, 16.0], "scco2": [24.0, 8.0],
-              "n2": [11.0, 2.0], "co2": [14.0, 3.0], "he": [30.0, 4.0], "ar": [12.0, 2.0], "ne": [25.0, 8.0],
-              "kr": [17.0, 5.0], "xe": [22.0, 6.0]}
+              "n2": [11.0, 2.0], "co2": [17.0, 3.0], "he": [30.0, 4.0], "ar": [12.0, 2.0], "ne": [51.0, 8.0],
+              "kr": [24.3, 5.0], "xe": [22.0, 6.0]}
 
 gasAliases = {"hps": ["hps", "High Pressure Steam", "highpressuresteam", "hpsteam"],
                 "lps": ["lps", "Low Pressure Steam", "lowpressuresteam", "lpsteam"],
@@ -330,11 +339,12 @@ async def pole(ctx):
 @client.command()
 async def help(ctx):
     footer = "Turbine Calculator Bot by FishingPole#3673"
+    imageURL = "https://cdn.discordapp.com/attachments/754459106709995600/766026990129119242/bottutorial.png"
     helpPage1 = discord.Embed(title="Help menu (Page 1)", colour=0x123456, description="A list of available commands!")
     helpPage1.add_field(name="&calc/&turbine/&plan", value="Calculate a turbine given some parameters. Syntax:\n"
     "`&calc [mode] [fuel] (dimensions) [blades]` or \n"
     "`&calc [mode] [base RF/mB] [ideal expansion] (dimensions) [blades]`\n"
-    "See page 3 for more details!")
+    "See page 2 for more details!")
     helpPage1.add_field(name="&stats", value="Calculate a turbine's stats using specific input rate and dynamo efficiency. Syntax:\n"
                                              "`&stats [turbine string] [input rate] (dynamo efficiency)`\n"
                                              "See page 4 for more details!", inline=False)
@@ -344,32 +354,35 @@ async def help(ctx):
     helpPage1.add_field(name="Navigation", value="You can navigate the embeds by adding to the reactions of the bot.\n"
     "▶ goes to the next page,\n◀ goes to the previous page,\n❌ exits the navigation menu.")
     helpPage1.set_footer(text=footer)
-    helpPage2 = discord.Embed(title="Help menu (Page 2)", colour=0x123456, description="A list of common aliases you can use!")
-    helpPage2.add_field(name="NC Version", value="NC Overhaul: `nco`, `overhaul`\n"
+    helpPage2 = discord.Embed(title="Help menu (Page 2)", colour=0x123456,
+                              description="[Full List of Aliases]({})".format(
+                                  "https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"
+                              ))
+    helpPage2.add_field(name="&calc Details", value="`mode`: The calculation mode. Refers to overhaul or pre-overhaul"
+                                                    " NC.\nCheck list of aliases at the top for valid names.\n`fuel`: The type of gas that"
+                                                    " enters the turbine. Usually a type of steam.\nValid names can be found in the list of aliases.\n`base RF/mB`: "
+                                                    "The base energy density of the gas (Can be decimal).\n**__Not compatible with fuel"
+                                                    " type!__**\n`ideal expansion`: The ideal expansion of the gas. \nWritten as a number or a percentage. (eg. 4 and 400% are both ok)\n**__Not compatible"
+                                                    " with fuel type!__**\n`dimensions`: Turbine & Bearing dimensions. Written as `txby`, x is turbine diameter\n"
+                                                    "and y is bearing diameter. **__Optional Parameter__**\n"
+                                                    "`blades`: The blades used in the turbine. Each blade is separated by a space.\nValid names can be found in the list"
+                                                    " of aliases. (top of the embed)", inline=False)
+    helpPage2.add_field(name="Examples of a &calc command",
+                        value="`&calc nco hps steel ext s`\nA turbine in NC Overhaul, with"
+                              " unspecified dimensions, that uses high pressure steam, and blades used are steel extreme steel.\n `&calc nc lps t8b4 s s`\n"
+                              "A 8x8x2 pre-overhaul turbine that has a 4x4 bearing, uses low pressure steam and blades used are steel steel.\n A visual example of a command: (click image)",
+                        inline=False)
+    helpPage2.set_image(url=imageURL)
+    helpPage3 = discord.Embed(title="Help menu (Page 3)", colour=0x123456, description="A list of common aliases you can use!")
+    helpPage3.add_field(name="NC Version", value="NC Overhaul: `nco`, `overhaul`\n"
                                                  "NC Preoverhaul: `nc`, `pre-overhaul`, `underhaul`", inline=False)
-    helpPage2.add_field(name="Steam Type", value="High Pressure Steam: `hps`, `hpsteam`\n"
+    helpPage3.add_field(name="Steam Type", value="High Pressure Steam: `hps`, `hpsteam`\n"
                                                  "Low Pressure Steam: `lps`, `lpsteam`\n"
                                                  "Steam (from other mods): `steam`, `meksteam`, `testeam`", inline=False)
-    helpPage2.add_field(name="Blades", value="Stator: `st`, `sta`, `:stator:`\n"
+    helpPage3.add_field(name="Blades", value="Stator: `st`, `sta`, `:stator:`\n"
                                              "Steel: `s`, `ste`, `:steel:`\n"
                                              "Extreme: `ext`, `ex`, `:extreme:`\n"
-                                             "SiC-SiC CMC: `sic`, `sicsic`, `:sic:`", inline=False)
-    helpPage2.set_footer(text=footer)
-    helpPage3 = discord.Embed(title="Help menu (Page 3)", colour=0x123456, description="[Full List of Aliases]({})".format(
-        "https://github.com/ThePoleThatFishes/Turbine-Bot/blob/master/aliases.txt"
-    ))
-    helpPage3.add_field(name="&calc Details", value="`mode`: The calculation mode. Refers to overhaul or pre-overhaul"
-    " NC.\nCheck list of aliases at the top for valid names.\n`fuel`: The type of gas that"
-    " enters the turbine. Usually a type of steam.\nValid names can be found in the list of aliases.\n`base RF/mB`: "
-    "The base energy density of the gas (Can be decimal).\n**__Not compatible with fuel"
-    " type!__**\n`ideal expansion`: The ideal expansion of the gas. \nWritten as a number or a percentage. (eg. 4 and 400% are both ok)\n**__Not compatible"
-    " with fuel type!__**\n`dimensions`: Turbine & Bearing dimensions. Written as `txby`, x is turbine diameter\n"
-    "and y is bearing diameter. **__Optional Parameter__**\n"
-    "`blades`: The blades used in the turbine. Each blade is separated by a space.\nValid names can be found in the list"
-    " of aliases. (top of the embed)", inline=False)
-    helpPage3.add_field(name="Example of a &calc command", value="`&calc nco hps steel ext s`\nA turbine in NC Overhaul, with"
-    " unspecified dimensions, that uses high pressure steam, and blades used are steel extreme steel.\n `&calc nc lps t8b4 s s`\n"
-    "A 8x8x2 pre-overhaul turbine that has a 4x4 bearing, uses low pressure steam and blades used are steel steel.", inline=False)
+                                             "SiC-SiC CMC: `sic`, `sicsic`, `:sicsic:`", inline=False)
     helpPage3.set_footer(text=footer)
     helpPage4 = discord.Embed(title="Help menu (Page 4)", colour=0x123456)
     helpPage4.add_field(name="&stats Details", value="`turbine string`: A string that describes the turbine's dimensions, "
